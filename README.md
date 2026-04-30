@@ -30,7 +30,22 @@ distributed instance discovery, and a richer format conversion pipeline.
 
 ## getting started
 
-run an instance:
+### local development
+
+```sh
+pnpm install
+cp api/.env.example api/.env
+
+# terminal 1: api server (http://localhost:9000)
+pnpm --filter @snag/api start
+
+# terminal 2: web frontend (http://localhost:5173)
+pnpm --filter @snag/web dev
+```
+
+then open http://localhost:5173, paste a link, hit "snag it".
+
+### production / self-host
 
 ```sh
 docker compose up
