@@ -1,61 +1,56 @@
-<div align="center">
-    <br/>
-    <p>
-        <img src="web/static/favicon.png" title="cobalt" alt="cobalt logo" width="100" />
-    </p>
-    <p>
-        best way to save what you love
-        <br/>
-        <a href="https://cobalt.tools">
-            cobalt.tools
-        </a>
-    </p>
-    <p>
-        <a href="https://discord.gg/pQPt8HBUPu">
-            💬 community discord server
-        </a>
-        <br/>
-        <a href="https://x.com/justusecobalt">
-            🐦 twitter
-        </a>
-        <a href="https://bsky.app/profile/cobalt.tools">
-            🦋 bluesky
-        </a>
-    </p>
-    <br/>
-</div>
+# snag
 
-cobalt is a media downloader that doesn't piss you off. it's friendly, efficient, and doesn't have ads, trackers, paywalls or other nonsense.
+a media downloader that respects you: no ads, no trackers, no logs, no nonsense. paste a link, get the file.
 
-paste the link, get the file, move on. that simple, just how it should be.
+snag is a friendly fork of [cobalt](https://github.com/imputnet/cobalt) with extra features for power users:
+a Go CLI, batch downloads, queue with resume, frame-accurate trimming, expanded image-platform support,
+distributed instance discovery, and a richer format conversion pipeline.
 
-### cobalt monorepo
-this monorepo includes source code for api, frontend, and related packages:
-- [api tree & readme](/api/)
-- [web tree & readme](/web/)
-- [packages tree](/packages/)
+## monorepo layout
 
-it also includes documentation in the [docs tree](/docs/):
-- [how to run a cobalt instance](/docs/run-an-instance.md)
-- [how to protect a cobalt instance](/docs/protect-an-instance.md)
-- [cobalt api instance environment variables](/docs/api-env-variables.md)
-- [cobalt api documentation](/docs/api.md)
+| path | purpose | license |
+|---|---|---|
+| [`api/`](./api/) | Express API server, the engine that turns links into media | AGPL-3.0 |
+| [`web/`](./web/) | SvelteKit web frontend (independent reimplementation) | AGPL-3.0 |
+| [`cli/`](./cli/) | Go command-line client (planned) | AGPL-3.0 |
+| [`packages/`](./packages/) | shared workspace packages | AGPL-3.0 / MIT |
+| [`docs/`](./docs/) | how to run an instance, env reference, api reference | AGPL-3.0 |
 
-### ethics
-cobalt is a tool that makes downloading public content easier. it takes **zero liability**.
-the end user is responsible for what they download, how they use and distribute that content.
-cobalt never caches any content, it [works like a fancy proxy](/api/src/stream/).
+## what snag does
 
-cobalt is in no way a piracy tool and cannot be used as such.
-it can only download free & publicly accessible content.
-same content can be downloaded via dev tools of any modern web browser.
+- pull video, audio, or images from a public URL on any supported service
+- offer client-side processing via FFmpeg-WASM where the device can handle it, server-side otherwise
+- never store, log, or reuse user content; the server is a strict pass-through
 
-### contributing
-if you're considering contributing to cobalt, first of all, thank you! check the [contribution guidelines here](/CONTRIBUTING.md) before getting started, they'll help you do your best right away.
+## what snag does not do
 
-### thank you
-cobalt is sponsored by [royalehosting.net](https://royalehosting.net/?partner=cobalt). a part of our infrastructure is hosted on their network. we really appreciate their kindness and support!
+- DRM-protected content (Spotify, Netflix, Apple Music, etc.)
+- private or auth-required content
+- anything that wouldn't be legal to fetch with a browser's dev tools
 
-### licenses
-for relevant licensing information, see the [api](api/README.md) and [web](web/README.md) READMEs.
-unless specified otherwise, the remainder of this repository is licensed under [AGPL-3.0](LICENSE).
+## getting started
+
+run an instance:
+
+```sh
+docker compose up
+```
+
+api docs: [`docs/api.md`](./docs/api.md). environment variables: [`docs/api-env-variables.md`](./docs/api-env-variables.md).
+
+## ethics
+
+snag is a tool, not a service. you are responsible for the content you fetch and how you use it.
+snag is not a piracy tool and refuses to behave like one — it strictly handles publicly accessible
+content that any browser could already download.
+
+## origin and credit
+
+snag is a fork of [cobalt by imput](https://github.com/imputnet/cobalt). the cobalt API server,
+shared packages, and architectural ideas are inherited under AGPL-3.0. the snag web frontend is an
+independent reimplementation under AGPL-3.0; cobalt's web frontend is under CC-BY-NC-SA 4.0 and is
+not redistributed here. see [`NOTICE`](./NOTICE) for full attribution.
+
+## license
+
+unless a subdirectory specifies otherwise, snag is licensed under [AGPL-3.0](./LICENSE).

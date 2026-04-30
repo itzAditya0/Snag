@@ -1,55 +1,55 @@
-# how to run a cobalt instance
-this tutorial will help you run your own cobalt processing instance. if your instance is public-facing, we highly recommend that you also [protect it from abuse](/docs/protect-an-instance.md) using turnstile or api keys or both.
+# how to run a snag instance
+this tutorial will help you run your own snag processing instance. if your instance is public-facing, we highly recommend that you also [protect it from abuse](/docs/protect-an-instance.md) using turnstile or api keys or both.
 
 ## using docker compose and package from github (recommended)
-to run the cobalt docker package, you need to have `docker` and `docker-compose` installed and configured.
+to run the snag docker package, you need to have `docker` and `docker-compose` installed and configured.
 
 if you need help with installing docker, you can find more information here:
 - [how to install docker](https://docs.docker.com/engine/install/)
 - [how to install docker compose](https://docs.docker.com/compose/install/)
 
-## how to run a cobalt docker package:
-1. create a folder for cobalt config file, something like this:
+## how to run a snag docker package:
+1. create a folder for snag config file, something like this:
     ```sh
-    mkdir cobalt
+    mkdir snag
     ```
 
-2. go to cobalt folder, and create a docker compose config file:
+2. go to snag folder, and create a docker compose config file:
     ```sh
-    cd cobalt && nano docker-compose.yml
+    cd snag && nano docker-compose.yml
     ```
     i'm using `nano` in this example, it may not be available in your distro. you can use any other text editor.
 
 3. copy and paste the [sample config from here](examples/docker-compose.example.yml) and edit it to your needs.
-    make sure to replace default URLs with your own or cobalt won't work correctly.
+    make sure to replace default URLs with your own or snag won't work correctly.
 
-4. finally, start the cobalt container (from cobalt directory):
+4. finally, start the snag container (from snag directory):
     ```sh
     docker compose up -d
     ```
 
 if you want your instance to support services that require authentication to view public content, create `cookies.json` file in the same directory as `docker-compose.yml`. example cookies file [can be found here](examples/cookies.example.json).
 
-cobalt package will update automatically thanks to watchtower.
+snag package will update automatically thanks to watchtower.
 
 it's highly recommended to use a reverse proxy (such as nginx) if you want your instance to face the public internet. look up tutorials online.
 
-## run cobalt api outside of docker (useful for local development)
+## run snag api outside of docker (useful for local development)
 requirements:
 - node.js >= 18
 - git
 - pnpm
 
-1. clone the repo: `git clone https://github.com/imputnet/cobalt`.
-2. go to api directory: `cd cobalt/api`.
+1. clone the repo: `git clone https://github.com/REPLACE_ME/snag`.
+2. go to api directory: `cd snag/api`.
 3. install dependencies: `pnpm install`.
 4. create `.env` file in the same directory.
-5. add needed environment variables to `.env` file. only `API_URL` is required to run cobalt.
+5. add needed environment variables to `.env` file. only `API_URL` is required to run snag.
     - if you don't know what api url to use for local development, use `http://localhost:9000/`.
-6. run cobalt: `pnpm start`.
+6. run snag: `pnpm start`.
 
 ### ubuntu 22.04 workaround
-`nscd` needs to be installed and running so that the `ffmpeg-static` binary can resolve DNS ([#101](https://github.com/imputnet/cobalt/issues/101#issuecomment-1494822258)):
+`nscd` needs to be installed and running so that the `ffmpeg-static` binary can resolve DNS ([#101](https://github.com/REPLACE_ME/snag/issues/101#issuecomment-1494822258)):
 
 ```bash
 sudo apt install nscd

@@ -1,5 +1,5 @@
 name: instance hosting help
-description: ask any question regarding cobalt instance hosting
+description: ask any question regarding snag instance hosting
 labels: ["instance hosting help"]
 body:
   - type: textarea

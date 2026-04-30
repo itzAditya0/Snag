@@ -2,3 +2,5 @@ packages:
     - "api"
     - "web"
     - "packages/*"
+# Note: web/ will be re-scaffolded as a fresh SvelteKit project under AGPL-3.0.
+# Original cobalt web frontend was CC-BY-NC-SA 4.0 and was removed for license reasons.

@@ -1,4 +1,4 @@
-declare module "@imput/version-info" {
+declare module "@snag/version-info" {
     export function getCommit(): Promise<string | undefined>;
     export function getBranch(): Promise<string | undefined>;
     export function getRemote(): Promise<string>;

@@ -1,5 +1,5 @@
 name: bug report
-description: report a global issue with the cobalt codebase
+description: report a global issue with the snag codebase
 labels: ["bug"]
 body:
   - type: textarea

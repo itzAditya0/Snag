@@ -1,5 +1,5 @@
 name: feature request
-description: suggest a feature for cobalt
+description: suggest a feature for snag
 labels: ["feature request"]
 body:
   - type: markdown
@@ -7,12 +7,12 @@ body:
       value: |
         thanks for taking the time to make a feature request!
         before you start, please make to read the "adding features or support for services" section of
-        our [contributor guidelines](https://github.com/imputnet/cobalt/blob/main/CONTRIBUTING.md#adding-features-or-support-for-services) to make sure your request is a good fit for cobalt.
+        our [contributor guidelines](https://github.com/REPLACE_ME/snag/blob/main/CONTRIBUTING.md#adding-features-or-support-for-services) to make sure your request is a good fit for snag.
   - type: textarea
     id: feat-description
     attributes:
       label: describe the feature you'd like to see
-      description: "clear and concise description of the feature you want to see in cobalt."
+      description: "clear and concise description of the feature you want to see in snag."
     validations:
       required: true
   - type: textarea

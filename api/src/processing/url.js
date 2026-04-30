@@ -201,11 +201,6 @@ export function extract(url, enabledServices = env.enabledServices) {
     }
 
     if (!enabledServices.has(host)) {
-        // show a different message when youtube is disabled on official instances
-        // as it only happens when shit hits the fan
-        if (new URL(env.apiURL).hostname.endsWith(".imput.net") && host === "youtube") {
-            return { error: "youtube.disabled_main_instance" };
-        }
         return { error: "service.disabled" };
     }
 

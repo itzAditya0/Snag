@@ -1,5 +1,5 @@
 name: main instance bug report
-description: "report an issue with cobalt.tools or api.cobalt.tools"
+description: "report an issue with snag.tools or api.snag.tools"
 labels: ["main instance issue"]
 body:
   - type: textarea
