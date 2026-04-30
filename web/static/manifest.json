@@ -1,0 +1,16 @@
+{
+    "name": "snag",
+    "short_name": "snag",
+    "description": "paste a link, get the file. media downloader without the nonsense.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0f0f10",
+    "theme_color": "#1a1a1d",
+    "icons": [
+        {
+            "src": "/favicon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        }
+    ]
+}
