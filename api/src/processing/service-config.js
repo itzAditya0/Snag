@@ -181,10 +181,15 @@ export const services = {
     }
 }
 
+// the default segment charset is a-zA-Z0-9. cobalt added @\.: to support
+// reddit comment hashes, vk owner-id syntax, etc. snag also adds "-" so
+// imgur slug-style gallery IDs (e.g. /gallery/never-mind-Bt0dNdo) match.
+// hyphens are otherwise unambiguous in URL paths — no existing pattern
+// breaks because of this widening.
 Object.values(services).forEach(service => {
     service.patterns = service.patterns.map(
         pattern => new UrlPattern(pattern, {
-            segmentValueCharset: UrlPattern.defaultOptions.segmentValueCharset + '@\\.:'
+            segmentValueCharset: UrlPattern.defaultOptions.segmentValueCharset + '@\\.:-'
         })
     )
 })

@@ -43,8 +43,17 @@
         response = null;
         errorMsg = '';
 
+        // the input field has a decorative "https://" prefix label, so users
+        // usually paste just `imgur.com/...` without a scheme. without a
+        // scheme `new URL(...)` throws and the api returns invalid_body.
+        // auto-prepend https:// when no scheme is present.
+        let cleaned = url.trim();
+        if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(cleaned)) {
+            cleaned = 'https://' + cleaned;
+        }
+
         try {
-            const req = buildRequest(url.trim());
+            const req = buildRequest(cleaned);
             if (trimStart.trim()) req.trimStart = trimStart.trim();
             if (trimEnd.trim()) req.trimEnd = trimEnd.trim();
             if (thumbnailAt.trim()) req.thumbnailAt = thumbnailAt.trim();

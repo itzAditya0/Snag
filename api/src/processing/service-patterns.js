@@ -11,8 +11,12 @@ export const testers = {
     "dailymotion": pattern => pattern.id?.length <= 32,
 
     "imgur": pattern => {
-        if (pattern.albumId) return pattern.albumId.length <= 16;
-        if (pattern.galleryId) return pattern.galleryId.length <= 16;
+        // imgur albums and galleries accept slug-style ids
+        // (e.g. /gallery/never-mind-Bt0dNdo) so cap at 64 chars rather
+        // than the bare-id 16 — the slug part is for SEO, the trailing
+        // hash is what imgur's API actually keys off.
+        if (pattern.albumId) return pattern.albumId.length <= 64;
+        if (pattern.galleryId) return pattern.galleryId.length <= 64;
         if (pattern.id && pattern.ext) {
             return pattern.id.length <= 12 && pattern.ext.length <= 5;
         }
