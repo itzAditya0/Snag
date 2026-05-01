@@ -22,7 +22,6 @@ import streamable from "./services/streamable.js";
 import twitch from "./services/twitch.js";
 import rutube from "./services/rutube.js";
 import dailymotion from "./services/dailymotion.js";
-import snapchat from "./services/snapchat.js";
 import loom from "./services/loom.js";
 import bluesky from "./services/bluesky.js";
 import newgrounds from "./services/newgrounds.js";
@@ -203,13 +202,6 @@ export default async function({ host, patternMatch, params, authType }) {
 
             case "dailymotion":
                 r = await dailymotion(patternMatch);
-                break;
-
-            case "snapchat":
-                r = await snapchat({
-                    ...patternMatch,
-                    alwaysProxy: params.alwaysProxy,
-                });
                 break;
 
             case "loom":

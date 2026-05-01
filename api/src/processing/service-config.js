@@ -103,19 +103,6 @@ export const services = {
         ],
         tld: "ru",
     },
-    snapchat: {
-        patterns: [
-            ":shortLink",
-            "spotlight/:spotlightId",
-            "add/:username/:storyId",
-            "u/:username/:storyId",
-            "add/:username",
-            "u/:username",
-            "t/:shortLink",
-            "o/:spotlightId",
-        ],
-        subdomains: ["t", "story"],
-    },
     soundcloud: {
         patterns: [
             ":author/:song/s-:accessKey",

@@ -101,7 +101,6 @@ export default function({
             switch (host) {
                 case "instagram":
                 case "twitter":
-                case "snapchat":
                 case "bsky":
                     params = { picker: r.picker };
                     break;
@@ -164,7 +163,6 @@ export default function({
                 case "tumblr":
                 case "pinterest":
                 case "streamable":
-                case "snapchat":
                 case "twitch":
                     responseType = "redirect";
                     break;

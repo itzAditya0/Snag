@@ -27,7 +27,6 @@ if the desired service isn't supported yet, feel free to create an appropriate i
 | pinterest         | ✅            | ✅         | ✅         | ➖         | ➖              |
 | reddit            | ✅            | ✅         | ✅         | ❌         | ❌              |
 | rutube            | ✅            | ✅         | ✅         | ✅         | ✅              |
-| snapchat          | ✅            | ✅         | ✅         | ➖         | ➖              |
 | soundcloud        | ➖            | ✅         | ➖         | ✅         | ✅              |
 | streamable        | ✅            | ✅         | ✅         | ➖         | ➖              |
 | tumblr            | ✅            | ✅         | ✅         | ➖         | ➖              |
@@ -48,7 +47,6 @@ if the desired service isn't supported yet, feel free to create an appropriate i
 | instagram  | supports reels, photos, and videos. lets you pick what to save from multi-media posts.                               |
 | pinterest  | supports photos, gifs, videos and stories.                                                                           |
 | reddit     | supports gifs and videos.                                                                                            |
-| snapchat   | supports spotlights and stories. lets you pick what to save from stories.                                            |
 | rutube     | supports yappy & private links.                                                                                      |
 | soundcloud | supports private links.                                                                                              |
 | twitter/x  | lets you pick what to save from multi-media posts. may not be 100% reliable due to current management.               |

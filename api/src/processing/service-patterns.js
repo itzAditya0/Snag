@@ -41,11 +41,6 @@ export const testers = {
         pattern.id?.length === 32 ||
         pattern.yappyId?.length === 32,
 
-    "snapchat": pattern =>
-        (pattern.username?.length <= 32 && (!pattern.storyId || pattern.storyId?.length <= 255)) ||
-        pattern.spotlightId?.length <= 255 ||
-        pattern.shortLink?.length <= 16,
-
     "soundcloud": pattern =>
         (pattern.author?.length <= 255 && pattern.song?.length <= 255) ||
         pattern.shortLink?.length <= 32,
