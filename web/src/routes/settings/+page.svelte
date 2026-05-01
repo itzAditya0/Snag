@@ -115,9 +115,19 @@
             </select>
         </div>
 
+        <div class="row">
+            <span class="row-label">output kind</span>
+            <select class="row-select mono" bind:value={settings.outputFormat}>
+                <option value="video">video (default)</option>
+                <option value="gif">animated gif</option>
+                <option value="webp">animated webp</option>
+                <option value="audio">audio extract</option>
+            </select>
+        </div>
+
         <p class="note">
-            re-encoding (codec / resize) is much slower than copy. only set these
-            when you need the conversion.
+            re-encoding (codec / resize / non-default output kind) is much slower
+            than copy. only set these when you need the conversion.
         </p>
     </section>
 
@@ -151,6 +161,15 @@
             <input type="checkbox" bind:checked={settings.youtubeBetterAudio} />
             <span class="row-label">prefer youtube&rsquo;s higher-quality audio stream</span>
         </label>
+
+        <div class="row">
+            <span class="row-label">loudness normalize</span>
+            <select class="row-select mono" bind:value={settings.normalizeAudio}>
+                <option value="off">off</option>
+                <option value="ebu">EBU R128 (-23 LUFS, streaming)</option>
+                <option value="broadcast">broadcast (-16 LUFS, louder)</option>
+            </select>
+        </div>
     </section>
 
     <section class="group">

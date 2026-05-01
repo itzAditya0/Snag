@@ -12,6 +12,7 @@
     let advancedOpen = $state(false);
     let trimStart = $state('');
     let trimEnd = $state('');
+    let thumbnailAt = $state('');
 
     const trimRe = /^(\d+(\.\d{1,3})?|(\d{1,2}:){1,2}\d{1,2}(\.\d{1,3})?)$/;
     const trimValid = (s: string) => s.length === 0 || trimRe.test(s);
@@ -25,8 +26,8 @@
     async function onSubmit(e: SubmitEvent) {
         e.preventDefault();
         if (!url.trim() || busy) return;
-        if (!trimValid(trimStart) || !trimValid(trimEnd)) {
-            errorMsg = 'invalid trim format. use ss, mm:ss, or hh:mm:ss';
+        if (!trimValid(trimStart) || !trimValid(trimEnd) || !trimValid(thumbnailAt)) {
+            errorMsg = 'invalid time format. use ss, mm:ss, or hh:mm:ss';
             return;
         }
 
@@ -38,6 +39,7 @@
             const req = buildRequest(url.trim());
             if (trimStart.trim()) req.trimStart = trimStart.trim();
             if (trimEnd.trim()) req.trimEnd = trimEnd.trim();
+            if (thumbnailAt.trim()) req.thumbnailAt = thumbnailAt.trim();
             response = await submit(req);
             if (response.status === 'error') {
                 errorMsg = response.error.code;
@@ -183,10 +185,23 @@
                                     />
                                 </label>
                             </div>
+                            <label class="trim-field">
+                                <span class="trim-label tracked">grab a single frame at</span>
+                                <input
+                                    type="text"
+                                    class="trim-input mono"
+                                    bind:value={thumbnailAt}
+                                    placeholder="00:00:30 — overrides trim, returns one JPEG"
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                    maxlength="16"
+                                    disabled={busy}
+                                />
+                            </label>
                             <p class="adv-note">
-                                use <span class="mono">ss</span>, <span class="mono">mm:ss</span>, or
-                                <span class="mono">hh:mm:ss</span>. for codec/container/resize, see
-                                <a href="/settings">settings</a>.
+                                times use <span class="mono">ss</span>, <span class="mono">mm:ss</span>,
+                                or <span class="mono">hh:mm:ss</span>. for codec / container /
+                                resize / output kind / loudnorm, see <a href="/settings">settings</a>.
                             </p>
                         </div>
                     {/if}

@@ -37,6 +37,12 @@ export interface Settings {
     videoContainer: 'auto' | 'mp4' | 'mkv' | 'webm';
     targetHeight: 'source' | '2160' | '1440' | '1080' | '720' | '480' | '360';
     burnSubtitles: boolean;
+
+    // F2 Polish — output format switch + LUFS. thumbnailAt is per-
+    // download (set on the home page advanced disclosure) so it's not
+    // persisted here.
+    outputFormat: 'video' | 'gif' | 'webp' | 'audio';
+    normalizeAudio: 'off' | 'ebu' | 'broadcast';
 }
 
 export const defaults: Settings = {
@@ -59,7 +65,9 @@ export const defaults: Settings = {
     videoCodec: 'auto',
     videoContainer: 'auto',
     targetHeight: 'source',
-    burnSubtitles: false
+    burnSubtitles: false,
+    outputFormat: 'video',
+    normalizeAudio: 'off'
 };
 
 const STORAGE_KEY = 'snag.settings.v1';
@@ -114,7 +122,9 @@ export function installPersistence() {
             videoCodec: settings.videoCodec,
             videoContainer: settings.videoContainer,
             targetHeight: settings.targetHeight,
-            burnSubtitles: settings.burnSubtitles
+            burnSubtitles: settings.burnSubtitles,
+            outputFormat: settings.outputFormat,
+            normalizeAudio: settings.normalizeAudio
         };
         save(snapshot);
     });
