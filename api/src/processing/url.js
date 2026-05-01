@@ -71,16 +71,6 @@ function aliasURL(url) {
             }
             break;
 
-        case "facebook":
-        case "fb":
-            if (url.searchParams.get('v')) {
-                url = new URL(`https://web.facebook.com/user/videos/${url.searchParams.get('v')}`);
-            }
-            if (url.hostname === 'fb.watch') {
-                url = new URL(`https://web.facebook.com/_shortLink/${parts[1]}`);
-            }
-            break;
-
         case "ddinstagram":
             if (services.instagram.altDomains.includes(host.domain) && [null, 'd', 'g'].includes(host.subdomain)) {
                 url.hostname = 'instagram.com';

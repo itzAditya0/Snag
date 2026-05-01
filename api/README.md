@@ -21,7 +21,6 @@ if the desired service isn't supported yet, feel free to create an appropriate i
 | bluesky           | ✅            | ✅         | ✅         | ➖         | ➖              |
 | dailymotion       | ✅            | ✅         | ✅         | ✅         | ✅              |
 | instagram         | ✅            | ✅         | ✅         | ➖         | ➖              |
-| facebook          | ✅            | ❌         | ✅         | ➖         | ➖              |
 | loom              | ✅            | ❌         | ✅         | ✅         | ➖              |
 | newgrounds        | ✅            | ✅         | ✅         | ✅         | ✅              |
 | ok.ru             | ✅            | ❌         | ✅         | ✅         | ✅              |
@@ -31,11 +30,9 @@ if the desired service isn't supported yet, feel free to create an appropriate i
 | snapchat          | ✅            | ✅         | ✅         | ➖         | ➖              |
 | soundcloud        | ➖            | ✅         | ➖         | ✅         | ✅              |
 | streamable        | ✅            | ✅         | ✅         | ➖         | ➖              |
-| tiktok            | ✅            | ✅         | ✅         | ❌         | ❌              |
 | tumblr            | ✅            | ✅         | ✅         | ➖         | ➖              |
 | twitch clips      | ✅            | ✅         | ✅         | ✅         | ✅              |
 | twitter/x         | ✅            | ✅         | ✅         | ➖         | ➖              |
-| vimeo             | ✅            | ✅         | ✅         | ✅         | ✅              |
 | vk videos & clips | ✅            | ❌         | ✅         | ✅         | ✅              |
 | youtube           | ✅            | ✅         | ✅         | ✅         | ✅              |
 
@@ -49,15 +46,12 @@ if the desired service isn't supported yet, feel free to create an appropriate i
 | service    | notes or features                                                                                                    |
 | :--------  | :-----                                                                                                               |
 | instagram  | supports reels, photos, and videos. lets you pick what to save from multi-media posts.                               |
-| facebook   | supports public accessible videos content only.                                                                      |
 | pinterest  | supports photos, gifs, videos and stories.                                                                           |
 | reddit     | supports gifs and videos.                                                                                            |
 | snapchat   | supports spotlights and stories. lets you pick what to save from stories.                                            |
 | rutube     | supports yappy & private links.                                                                                      |
 | soundcloud | supports private links.                                                                                              |
-| tiktok     | supports videos with or without watermark, images from slideshow without watermark, and full (original) audios.      |
 | twitter/x  | lets you pick what to save from multi-media posts. may not be 100% reliable due to current management.               |
-| vimeo      | audio downloads are only available for dash.                                                                         |
 | youtube    | supports videos, music, and shorts. 8K, 4K, HDR, VR, and high FPS videos. rich metadata & dubs. h264/av1/vp9 codecs. |
 
 ## license

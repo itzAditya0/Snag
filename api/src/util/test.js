@@ -17,7 +17,7 @@ const getTests = (service) => loadJSON(getTestPath(service));
 const finnicky = new Set(
     process.env.TEST_IGNORE_SERVICES
     ? process.env.TEST_IGNORE_SERVICES.split(',')
-    : ['bilibili', 'instagram', 'facebook', 'youtube', 'vk', 'twitter', 'reddit']
+    : ['bilibili', 'instagram', 'youtube', 'vk', 'twitter', 'reddit']
 );
 
 const runTestsFor = async (service) => {

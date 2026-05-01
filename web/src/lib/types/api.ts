@@ -35,7 +35,6 @@ export interface SnagRequest {
     disableMetadata?: boolean;
     allowH265?: boolean;
     convertGif?: boolean;
-    tiktokFullAudio?: boolean;
     alwaysProxy?: boolean;
     youtubeHLS?: boolean;
     youtubeBetterAudio?: boolean;

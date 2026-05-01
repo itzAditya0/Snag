@@ -105,27 +105,6 @@ export default function({
                 case "bsky":
                     params = { picker: r.picker };
                     break;
-
-                case "tiktok":
-                    let audioStreamType = "audio";
-                    if (r.bestAudio === "mp3" && audioFormat === "best") {
-                        audioFormat = "mp3";
-                        audioStreamType = "proxy"
-                    }
-                    params = {
-                        picker: r.picker,
-                        url: createStream({
-                            service: "tiktok",
-                            type: audioStreamType,
-                            url: r.urls,
-                            headers: r.headers,
-                            filename: `${r.audioFilename}.${audioFormat}`,
-                            isAudioOnly: true,
-                            audioFormat,
-                            audioBitrate
-                        })
-                    }
-                    break;
             }
             break;
 
@@ -145,7 +124,6 @@ export default function({
                     break;
 
                 case "rutube":
-                case "vimeo":
                     if (Array.isArray(r.urls)) {
                         params = { type: "merge" };
                     } else if (r.subtitles) {
@@ -172,7 +150,6 @@ export default function({
                     break;
 
                 case "vk":
-                case "tiktok":
                     params = {
                         type: r.subtitles ? "remux" : "proxy"
                     };
@@ -183,7 +160,6 @@ export default function({
                     params = { type: "proxy" };
                     break;
 
-                case "facebook":
                 case "instagram":
                 case "tumblr":
                 case "pinterest":
@@ -222,7 +198,7 @@ export default function({
                 }
             }
 
-            if (r.isHLS || host === "vimeo") {
+            if (r.isHLS) {
                 copy = false;
                 processType = "audio";
             }

@@ -14,9 +14,7 @@ import twitter from "./services/twitter.js";
 import youtube from "./services/youtube.js";
 import vk from "./services/vk.js";
 import ok from "./services/ok.js";
-import tiktok from "./services/tiktok.js";
 import tumblr from "./services/tumblr.js";
-import vimeo from "./services/vimeo.js";
 import soundcloud from "./services/soundcloud.js";
 import instagram from "./services/instagram.js";
 import pinterest from "./services/pinterest.js";
@@ -26,7 +24,6 @@ import rutube from "./services/rutube.js";
 import dailymotion from "./services/dailymotion.js";
 import snapchat from "./services/snapchat.js";
 import loom from "./services/loom.js";
-import facebook from "./services/facebook.js";
 import bluesky from "./services/bluesky.js";
 import newgrounds from "./services/newgrounds.js";
 
@@ -144,33 +141,11 @@ export default async function({ host, patternMatch, params, authType }) {
                 });
                 break;
 
-            case "tiktok":
-                r = await tiktok({
-                    postId: patternMatch.postId,
-                    shortLink: patternMatch.shortLink,
-                    fullAudio: params.tiktokFullAudio,
-                    isAudioOnly,
-                    h265: params.allowH265,
-                    alwaysProxy: params.alwaysProxy,
-                    subtitleLang,
-                });
-                break;
-
             case "tumblr":
                 r = await tumblr({
                     id: patternMatch.id,
                     user: patternMatch.user,
                     url
-                });
-                break;
-
-            case "vimeo":
-                r = await vimeo({
-                    id: patternMatch.id.slice(0, 11),
-                    password: patternMatch.password,
-                    quality: params.videoQuality,
-                    isAudioOnly,
-                    subtitleLang,
                 });
                 break;
 
@@ -241,13 +216,6 @@ export default async function({ host, patternMatch, params, authType }) {
                 r = await loom({
                     id: patternMatch.id,
                     subtitleLang,
-                });
-                break;
-
-            case "facebook":
-                r = await facebook({
-                    ...patternMatch,
-                    dispatcher
                 });
                 break;
 

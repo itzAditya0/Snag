@@ -10,13 +10,6 @@ export const testers = {
 
     "dailymotion": pattern => pattern.id?.length <= 32,
 
-    "facebook": pattern =>
-        pattern.shortLink?.length <= 11 ||
-        pattern.username?.length <= 30 ||
-        pattern.caption?.length <= 255 ||
-        pattern.id?.length <= 20 && !pattern.shareType ||
-        pattern.id?.length <= 20 && pattern.shareType?.length === 1,
-
     "instagram": pattern =>
         pattern.postId?.length <= 48 ||
         pattern.shareId?.length <= 16 ||
@@ -60,10 +53,6 @@ export const testers = {
     "streamable": pattern =>
         pattern.id?.length <= 6,
 
-    "tiktok": pattern =>
-        pattern.postId?.length <= 21 ||
-        pattern.shortLink?.length <= 21,
-
     "tumblr": pattern =>
         pattern.id?.length < 21 ||
         (pattern.id?.length < 21 && pattern.user?.length <= 32),
@@ -73,9 +62,6 @@ export const testers = {
 
     "twitter": pattern =>
         pattern.id?.length < 20,
-
-    "vimeo": pattern =>
-        pattern.id?.length <= 11 && (!pattern.password || pattern.password.length < 16),
 
     "vk": pattern =>
         (pattern.ownerId?.length <= 10 && pattern.videoId?.length <= 10) ||

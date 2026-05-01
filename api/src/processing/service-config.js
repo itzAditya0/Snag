@@ -1,7 +1,7 @@
 import UrlPattern from "url-pattern";
 
 export const audioIgnore = new Set(["vk", "ok", "loom"]);
-export const hlsExceptions = new Set(["dailymotion", "vimeo", "rutube", "bsky", "youtube"]);
+export const hlsExceptions = new Set(["dailymotion", "rutube", "bsky", "youtube"]);
 
 export const services = {
     bilibili: {
@@ -22,17 +22,6 @@ export const services = {
     },
     dailymotion: {
         patterns: ["video/:id"],
-    },
-    facebook: {
-        patterns: [
-            "_shortLink/:shortLink",
-            ":username/videos/:caption/:id",
-            ":username/videos/:id",
-            "reel/:id",
-            "share/:shareType/:id"
-        ],
-        subdomains: ["web", "m"],
-        altDomains: ["fb.watch"],
     },
     instagram: {
         patterns: [
@@ -143,17 +132,6 @@ export const services = {
             "s/:id"
         ],
     },
-    tiktok: {
-        patterns: [
-            ":user/video/:postId",
-            "i18n/share/video/:postId",
-            ":shortLink",
-            "t/:shortLink",
-            ":user/photo/:postId",
-            "v/:postId.html"
-        ],
-        subdomains: ["vt", "vm", "m", "t", "pro"],
-    },
     tumblr: {
         patterns: [
             "post/:id",
@@ -179,16 +157,6 @@ export const services = {
         ],
         subdomains: ["mobile"],
         altDomains: ["x.com", "vxtwitter.com", "fixvx.com"],
-    },
-    vimeo: {
-        patterns: [
-            ":id",
-            "video/:id",
-            ":id/:password",
-            "/channels/:user/:id",
-            "groups/:groupId/videos/:id"
-        ],
-        subdomains: ["player"],
     },
     vk: {
         patterns: [
