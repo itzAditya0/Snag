@@ -3,6 +3,7 @@
     import type { SnagResponse, DownloadMode } from '$types/api';
     import { settings, buildRequest } from '$stores/settings.svelte';
     import { enqueueOne } from '$stores/queue.svelte';
+    import { processLocally } from '$lib/local-processing/client';
     import Picker from '$components/picker/Picker.svelte';
 
     let url = $state('');
@@ -13,6 +14,12 @@
     let trimStart = $state('');
     let trimEnd = $state('');
     let thumbnailAt = $state('');
+
+    // local-processing UI state
+    let lpRunning = $state(false);
+    let lpPhase = $state('');
+    let lpResult = $state<{ blobUrl: string; filename: string } | null>(null);
+    let lpError = $state('');
 
     const trimRe = /^(\d+(\.\d{1,3})?|(\d{1,2}:){1,2}\d{1,2}(\.\d{1,3})?)$/;
     const trimValid = (s: string) => s.length === 0 || trimRe.test(s);
@@ -60,6 +67,32 @@
     function reset() {
         response = null;
         errorMsg = '';
+        if (lpResult) {
+            URL.revokeObjectURL(lpResult.blobUrl);
+        }
+        lpResult = null;
+        lpRunning = false;
+        lpPhase = '';
+        lpError = '';
+    }
+
+    async function startLocalProcessing() {
+        if (!response || response.status !== 'local-processing' || lpRunning) return;
+        lpError = '';
+        lpResult = null;
+        lpRunning = true;
+        lpPhase = 'starting…';
+        try {
+            const handle = processLocally(response, (phase) => {
+                lpPhase = phase;
+            });
+            lpResult = await handle.promise;
+            lpPhase = 'done';
+        } catch (err) {
+            lpError = err instanceof Error ? err.message : String(err);
+        } finally {
+            lpRunning = false;
+        }
     }
 
     function setMode(m: DownloadMode) {
@@ -90,18 +123,36 @@
                 {:else if response.status === 'picker'}
                     <Picker {response} />
                 {:else if response.status === 'local-processing'}
-                    <p class="result-label tracked">in-browser processing required</p>
+                    <p class="result-label tracked">in-browser processing</p>
                     <p class="hint">
-                        {response.tunnel.length} streams to merge. client-side FFmpeg-WASM is on
-                        the roadmap. for now, set <a href="/settings">local processing</a> to
-                        <code>disabled</code> to have the server merge for you, or download the
-                        streams individually:
+                        {response.tunnel.length} stream{response.tunnel.length === 1 ? '' : 's'} to
+                        merge ({response.type}). nothing leaves your device.
                     </p>
-                    <ul class="streams mono">
-                        {#each response.tunnel as t, i}
-                            <li><a href={t} download>stream {i + 1}</a></li>
-                        {/each}
-                    </ul>
+                    {#if lpResult}
+                        <a class="result-link" href={lpResult.blobUrl} download={lpResult.filename}>
+                            <span class="filename">{lpResult.filename}</span>
+                            <span class="result-arrow" aria-hidden="true">&rarr;</span>
+                        </a>
+                    {:else if lpRunning}
+                        <p class="status mono">{lpPhase}</p>
+                    {:else if lpError}
+                        <p class="error-code mono">local-processing failed: {lpError}</p>
+                        <button type="button" class="reset tracked" onclick={startLocalProcessing}>
+                            try again
+                        </button>
+                    {:else}
+                        <button type="button" class="lp-go tracked" onclick={startLocalProcessing}>
+                            run in this tab &rarr;
+                        </button>
+                    {/if}
+                    <details class="streams-details">
+                        <summary class="tracked">or grab the raw streams</summary>
+                        <ul class="streams mono">
+                            {#each response.tunnel as t, i}
+                                <li><a href={t} download>stream {i + 1}</a></li>
+                            {/each}
+                        </ul>
+                    </details>
                 {/if}
                 <button class="reset tracked" onclick={reset}>start over</button>
             </div>
@@ -527,16 +578,41 @@
         line-height: 1.5;
     }
 
-    .hint code {
-        padding: 0.05em 0.3em;
-        background: var(--surface);
-        border-radius: 0.2em;
-        font-size: 0.85em;
+    .lp-go {
+        align-self: flex-start;
+        padding: 0.5rem 0.85rem;
+        background: var(--text);
+        color: var(--bg);
+        border-radius: 0.2rem;
+        cursor: pointer;
+        transition: opacity 0.15s var(--ease);
     }
 
-    .hint a {
-        color: var(--accent);
-        border-bottom: 1px solid var(--accent-soft);
+    .lp-go:hover {
+        opacity: 0.85;
+    }
+
+    .streams-details {
+        margin-top: 0.25rem;
+    }
+
+    .streams-details summary {
+        cursor: pointer;
+        color: var(--text-muted);
+        list-style: none;
+        padding: 0.3rem 0;
+    }
+
+    .streams-details summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .streams-details summary::before {
+        content: "+ ";
+    }
+
+    .streams-details[open] summary::before {
+        content: "− ";
     }
 
     .streams {

@@ -93,6 +93,10 @@ importers:
   packages/version-info: {}
 
   web:
+    dependencies:
+      '@imput/libav.js-remux-cli':
+        specifier: ^6.8.7
+        version: 6.8.7
     devDependencies:
       '@sveltejs/adapter-auto':
         specifier: ^3.3.1
@@ -512,6 +516,9 @@ packages:
   '@humanwhocodes/retry@0.4.3':
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
+
+  '@imput/libav.js-remux-cli@6.8.7':
+    resolution: {integrity: sha512-EXyRSaIGDSLs98dFxPsRPWOr0G/cNWPKe94u0Ch4/ZwopDVfi7Z0utekluhowUns09LJ5RN9BuCZwc6slMcaLg==}
 
   '@imput/psl@2.0.4':
     resolution: {integrity: sha512-vuy76JX78/DnJegLuJoLpMmw11JTA/9HvlIADg/f8dDVXyxbh0jnObL0q13h+WvlBO4Gk26Pu8sUa7/h0JGQig==}
@@ -2182,6 +2189,8 @@ snapshots:
   '@humanwhocodes/module-importer@1.0.1': {}
 
   '@humanwhocodes/retry@0.4.3': {}
+
+  '@imput/libav.js-remux-cli@6.8.7': {}
 
   '@imput/psl@2.0.4':
     dependencies:
