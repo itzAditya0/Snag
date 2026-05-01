@@ -18,11 +18,13 @@ import (
 	"time"
 )
 
-// DefaultSource is the snag community instance list (placeholder; users
-// can override with `snag instances source add <url>` or by editing the
-// config file directly). on the very first run no source is configured —
-// `snag instances refresh` is required.
-const DefaultSource = "https://instances.cobalt.best/instances.json"
+// DefaultSource is intentionally empty. snag does not ship a hard-coded
+// default discovery URL — the user must opt in to a source via
+// `snag instances source add <url>`. this avoids accidentally trusting
+// a third-party (e.g. cobalt's) instance directory on first run, and
+// keeps `snag instances refresh` a no-op until the operator has chosen
+// where to fetch from.
+const DefaultSource = ""
 
 // Instance is one row in the discovery output. fields beyond URL come
 // from a source list when available, or from a live `GET /` ping.

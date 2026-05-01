@@ -8,6 +8,22 @@ import { convertLanguageCode } from "../misc/language-codes.js";
 
 const extraProcessingTypes = new Set(["merge", "remux", "mute", "audio", "gif"]);
 
+// duplicates the parser in api/src/stream/ffmpeg.js intentionally — keeps
+// match-action standalone so it can validate trim windows before any
+// streaming setup. accepts "ss[.mmm]", "mm:ss[.mmm]", "hh:mm:ss[.mmm]".
+const trimToSecondsLocal = (t) => {
+    if (typeof t !== "string") return NaN;
+    if (t.includes(":")) {
+        const parts = t.split(":");
+        if (parts.length < 2 || parts.length > 3) return NaN;
+        return parts.reduce(
+            (acc, p, i) => acc + parseFloat(p) * Math.pow(60, parts.length - 1 - i),
+            0
+        );
+    }
+    return parseFloat(t);
+};
+
 export default function({
     r,
     host,
@@ -283,6 +299,17 @@ export default function({
     // F3 — trim. when trimStart/trimEnd is set, force the response through
     // FFmpeg so the cut is actually applied. photos/pickers can't be trimmed.
     if ((trimStart || trimEnd) && action !== "photo" && action !== "picker") {
+        // reject inverted / zero-length ranges up front so users see a clear
+        // error instead of getting the full clip starting at trimStart.
+        if (trimStart && trimEnd) {
+            const a = trimToSecondsLocal(trimStart);
+            const b = trimToSecondsLocal(trimEnd);
+            if (Number.isFinite(a) && Number.isFinite(b) && a >= b) {
+                return createResponse("error", {
+                    code: "error.api.trim.invalid_range",
+                });
+            }
+        }
         if (responseType === "redirect" || (responseType === "tunnel" && params.type === "proxy")) {
             params.type = action === "audio" ? "audio" : "remux";
             responseType = "tunnel";

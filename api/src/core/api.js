@@ -18,6 +18,7 @@ import { verifyTurnstileToken } from "../security/turnstile.js";
 import { friendlyServiceName } from "../processing/service-alias.js";
 import { verifyStream } from "../stream/manage.js";
 import { createResponse, normalizeRequest, getIP } from "../processing/request.js";
+import { apiSchema } from "../processing/schema.js";
 import { setupTunnelHandler } from "./itunnel.js";
 
 import * as APIKeys from "../security/api-keys.js";
@@ -198,21 +199,23 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
 
     app.post(apiPaths, apiLimiter);
 
-    // /batch payloads can carry up to 50 URLs, so they need a larger body
-    // limit than the strict 1 KB used for single-URL POST /.
-    app.use('/batch', express.json({ limit: 16 * 1024 }));
-    app.use('/', express.json({ limit: 1024 }));
+    // route-scoped body parsers so that POST / cannot accidentally accept a
+    // larger body just because /batch is registered with a higher limit.
+    // matching is exact per path (express's `app.use('/batch', ...)` matches
+    // any path that *starts* with /batch — too broad — whereas the route
+    // method form below scopes parsing to the actual endpoint).
+    const parseSmallJSON = express.json({ limit: 1024 });
+    const parseBatchJSON = express.json({ limit: 16 * 1024 });
 
-    app.use('/', (err, _, res, next) => {
+    const jsonErrorHandler = (err, _req, res, next) => {
         if (err) {
             const { status, body } = createResponse("error", {
                 code: "error.api.invalid_body",
             });
             return res.status(status).json(body);
         }
-
         next();
-    });
+    };
 
     app.post("/session", sessionLimiter, async (req, res) => {
         if (!env.sessionEnabled) {
@@ -281,7 +284,7 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
         }
     };
 
-    app.post('/', async (req, res) => {
+    app.post('/', parseSmallJSON, jsonErrorHandler, async (req, res) => {
         const result = await processOne(req.body, req);
         res.status(result.status).json(result.body);
     });
@@ -292,7 +295,12 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
     const BATCH_LIMIT = 50;
     const BATCH_CONCURRENCY = 4;
 
-    app.post('/batch', async (req, res) => {
+    // every key the per-url path is allowed to accept. shared options that
+    // aren't in this list are dropped before fanout so a single typo doesn't
+    // produce N copies of error.api.invalid_body.
+    const ALLOWED_BATCH_OPTS = new Set(Object.keys(apiSchema.shape).filter(k => k !== 'url'));
+
+    app.post('/batch', parseBatchJSON, jsonErrorHandler, async (req, res) => {
         const body = req.body || {};
         const urls = body.urls;
         if (!Array.isArray(urls) || urls.length === 0 || urls.length > BATCH_LIMIT) {
@@ -302,9 +310,22 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
             return fail(res, "error.api.batch.invalid_url");
         }
 
-        // strip "urls" from shared options so each per-URL request gets a
-        // single string url field (which apiSchema expects).
-        const { urls: _, ...sharedOpts } = body;
+        // collect ONLY recognised option keys from the body. unknown keys
+        // (typos, future-not-supported fields) get reported once at the
+        // batch level instead of producing N identical schema errors.
+        const sharedOpts = {};
+        const unknownKeys = [];
+        for (const [k, v] of Object.entries(body)) {
+            if (k === 'urls') continue;
+            if (ALLOWED_BATCH_OPTS.has(k)) {
+                sharedOpts[k] = v;
+            } else {
+                unknownKeys.push(k);
+            }
+        }
+        if (unknownKeys.length > 0) {
+            return fail(res, "error.api.batch.unknown_options", { keys: unknownKeys });
+        }
 
         const results = new Array(urls.length);
         for (let i = 0; i < urls.length; i += BATCH_CONCURRENCY) {

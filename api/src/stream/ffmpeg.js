@@ -330,9 +330,13 @@ const convertAudio = async (streamInfo, res) => {
 }
 
 const convertGif = async (streamInfo, res) => {
-    const inputArgs = [];
+    // gif and webp run a filter graph (palettegen/paletteuse, libwebp), so
+    // they need clean decoded frames at the trim boundary. fast input-side
+    // -ss before -i lands on a non-keyframe under DASH/HLS sources and
+    // leaves the filter chain with nothing to encode (-> empty output).
+    // use *output*-side seek (-ss after -i) here: slower, but reliable.
+    const inputArgs = ['-i', primarySource(streamInfo)];
     if (streamInfo.trimStart) inputArgs.push('-ss', streamInfo.trimStart);
-    inputArgs.push('-i', primarySource(streamInfo));
 
     const trimDuration = computeTrimDuration(streamInfo);
     if (trimDuration) inputArgs.push('-t', trimDuration);
@@ -365,9 +369,9 @@ const convertGif = async (streamInfo, res) => {
 // F2 Polish — animated WebP via libwebp. accepts trim window like the
 // other flows. resize (targetHeight) honoured if set; default 480.
 const convertWebP = async (streamInfo, res) => {
-    const inputArgs = [];
+    // see convertGif comment — output-side seek for filter-graph correctness.
+    const inputArgs = ['-i', primarySource(streamInfo)];
     if (streamInfo.trimStart) inputArgs.push('-ss', streamInfo.trimStart);
-    inputArgs.push('-i', primarySource(streamInfo));
 
     const trimDuration = computeTrimDuration(streamInfo);
     if (trimDuration) inputArgs.push('-t', trimDuration);
