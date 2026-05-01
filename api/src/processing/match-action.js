@@ -23,6 +23,10 @@ export default function({
     localProcessing,
     trimStart,
     trimEnd,
+    videoCodec,
+    videoContainer,
+    targetHeight,
+    burnSubtitles,
 }) {
     let action,
         responseType = "tunnel",
@@ -249,6 +253,34 @@ export default function({
         if (responseType === "tunnel" || responseType === "local-processing") {
             params.trimStart = trimStart;
             params.trimEnd = trimEnd;
+        }
+    }
+
+    // F2 Basic — format conversion. any non-default forces FFmpeg.
+    const wantsConversion =
+        (videoCodec && videoCodec !== "auto") ||
+        (videoContainer && videoContainer !== "auto") ||
+        (targetHeight && targetHeight !== "source") ||
+        burnSubtitles;
+    if (wantsConversion && action !== "photo" && action !== "picker" && action !== "audio" && action !== "gif") {
+        if (responseType === "redirect" || (responseType === "tunnel" && params.type === "proxy")) {
+            params.type = "remux";
+            responseType = "tunnel";
+        }
+        if (responseType === "tunnel" || responseType === "local-processing") {
+            params.videoCodec = videoCodec;
+            params.videoContainer = videoContainer;
+            params.targetHeight = targetHeight;
+            params.burnSubtitles = burnSubtitles;
+            // override the filename extension when container changes
+            if (videoContainer && videoContainer !== "auto") {
+                const fn = defaultParams.filename;
+                if (typeof fn === "string") {
+                    const dot = fn.lastIndexOf(".");
+                    defaultParams.filename =
+                        (dot > 0 ? fn.slice(0, dot) : fn) + "." + videoContainer;
+                }
+            }
         }
     }
 

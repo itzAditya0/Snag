@@ -303,6 +303,10 @@ export default async function({ host, patternMatch, params, authType }) {
             localProcessing,
             trimStart: params.trimStart,
             trimEnd: params.trimEnd,
+            videoCodec: params.videoCodec,
+            videoContainer: params.videoContainer,
+            targetHeight: params.targetHeight,
+            burnSubtitles: params.burnSubtitles,
         })
     } catch {
         return createResponse("error", {

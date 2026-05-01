@@ -69,5 +69,12 @@ export const apiSchema = z.object({
               .max(16)
               .regex(/^(\d+(\.\d{1,3})?|(\d{1,2}:){1,2}\d{1,2}(\.\d{1,3})?)$/)
               .optional(),
+
+    // F2 Basic — output format conversion (post-extraction, server-side).
+    // any non-default value forces the response through FFmpeg.
+    videoCodec: z.enum(["auto", "h264", "h265", "av1", "vp9"]).default("auto"),
+    videoContainer: z.enum(["auto", "mp4", "mkv", "webm"]).default("auto"),
+    targetHeight: z.enum(["source", "2160", "1440", "1080", "720", "480", "360"]).default("source"),
+    burnSubtitles: z.boolean().default(false),
 })
 .strict();

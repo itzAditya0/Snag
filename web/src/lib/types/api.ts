@@ -42,6 +42,12 @@ export interface SnagRequest {
     // F3 — trim. accepts "ss[.mmm]", "mm:ss[.mmm]", or "hh:mm:ss[.mmm]".
     trimStart?: string;
     trimEnd?: string;
+
+    // F2 Basic — format conversion (output-side, server-side).
+    videoCodec?: 'auto' | 'h264' | 'h265' | 'av1' | 'vp9';
+    videoContainer?: 'auto' | 'mp4' | 'mkv' | 'webm';
+    targetHeight?: 'source' | '2160' | '1440' | '1080' | '720' | '480' | '360';
+    burnSubtitles?: boolean;
 }
 
 export type ResponseStatus = 'redirect' | 'tunnel' | 'local-processing' | 'picker' | 'error';

@@ -49,6 +49,12 @@ export function createStream(obj) {
             // F3 — trim. validated by api schema before reaching here.
             trimStart: obj.trimStart,
             trimEnd: obj.trimEnd,
+
+            // F2 Basic — format conversion fields.
+            videoCodec: obj.videoCodec,
+            videoContainer: obj.videoContainer,
+            targetHeight: obj.targetHeight,
+            burnSubtitles: obj.burnSubtitles,
         };
 
     // FIXME: this is now a Promise, but it is not awaited

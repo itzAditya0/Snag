@@ -58,6 +58,55 @@ const buildInputs = (urls, streamInfo) => {
     });
 };
 
+// F2 Basic — true when any output conversion is requested.
+const wantsConversion = (streamInfo) =>
+    (streamInfo.videoCodec && streamInfo.videoCodec !== "auto") ||
+    (streamInfo.targetHeight && streamInfo.targetHeight !== "source") ||
+    streamInfo.burnSubtitles;
+
+const codecMap = {
+    h264: "libx264",
+    h265: "libx265",
+    av1: "libsvtav1",
+    vp9: "libvpx-vp9",
+};
+
+// F2 Basic — emit the codec/scale/burn-subs args. caller is responsible for
+// ensuring -c:v copy is replaced with these. returns null if no conversion
+// is wanted.
+const buildVideoConversionArgs = (streamInfo, subsInputIndex = null) => {
+    if (!wantsConversion(streamInfo)) return null;
+
+    const args = [];
+    const filters = [];
+
+    if (streamInfo.targetHeight && streamInfo.targetHeight !== "source") {
+        filters.push(`scale=-2:${streamInfo.targetHeight}`);
+    }
+
+    if (streamInfo.burnSubtitles && subsInputIndex !== null) {
+        // hardcode the soft subtitle track into pixels via the subtitles filter.
+        filters.push(`subtitles='${subsInputIndex}:0'`);
+    }
+
+    if (filters.length > 0) {
+        args.push("-vf", filters.join(","));
+    }
+
+    const targetCodec = codecMap[streamInfo.videoCodec] ?? codecMap.h264;
+    args.push("-c:v", targetCodec, "-preset", "veryfast", "-crf", "23");
+
+    return args;
+};
+
+// resolve the on-disk output container, honouring the videoContainer override.
+const resolveFormat = (streamInfo) => {
+    if (streamInfo.videoContainer && streamInfo.videoContainer !== "auto") {
+        return streamInfo.videoContainer;
+    }
+    return streamInfo.filename.split(".").pop();
+};
+
 const convertMetadataToFFmpeg = (metadata) => {
     const args = [];
 
@@ -135,7 +184,7 @@ const render = async (res, streamInfo, ffargs, estimateMultiplier) => {
 }
 
 const remux = async (streamInfo, res) => {
-    const format = streamInfo.filename.split('.').pop();
+    const format = resolveFormat(streamInfo);
     const urls = Array.isArray(streamInfo.urls) ? streamInfo.urls : [streamInfo.urls];
     const args = buildInputs(urls, streamInfo);
 
@@ -149,7 +198,15 @@ const remux = async (streamInfo, res) => {
         args.push('-t', trimDuration);
     }
 
-    if (streamInfo.subtitles) {
+    // burn-subs needs the subtitle source as an input the filter graph can
+    // reference by index. when burnSubtitles is on, attach the subtitle as
+    // an input (no -map for it) so subtitles= can read it.
+    let subsInputIndex = null;
+    const burnSubs = streamInfo.burnSubtitles && streamInfo.subtitles;
+    if (burnSubs) {
+        subsInputIndex = urls.length;
+        args.push('-i', streamInfo.subtitles);
+    } else if (streamInfo.subtitles) {
         args.push(
             '-i', streamInfo.subtitles,
             '-map', `${urls.length}:s`,
@@ -169,8 +226,13 @@ const remux = async (streamInfo, res) => {
         );
     }
 
+    const conversionArgs = buildVideoConversionArgs(streamInfo, subsInputIndex);
+    if (conversionArgs) {
+        args.push(...conversionArgs);
+    } else {
+        args.push('-c:v', 'copy');
+    }
     args.push(
-        '-c:v', 'copy',
         ...(streamInfo.type === 'mute' ? ['-an'] : ['-c:a', 'copy'])
     );
 
