@@ -4,6 +4,7 @@
     import { settings, buildRequest } from '$stores/settings.svelte';
     import { enqueueOne } from '$stores/queue.svelte';
     import { processLocally } from '$lib/local-processing/client';
+    import { t } from '$lib/i18n/i18n.svelte';
     import Picker from '$components/picker/Picker.svelte';
 
     let url = $state('');
@@ -24,17 +25,17 @@
     const trimRe = /^(\d+(\.\d{1,3})?|(\d{1,2}:){1,2}\d{1,2}(\.\d{1,3})?)$/;
     const trimValid = (s: string) => s.length === 0 || trimRe.test(s);
 
-    const modes: { value: DownloadMode; label: string }[] = [
-        { value: 'auto', label: 'auto' },
-        { value: 'audio', label: 'audio' },
-        { value: 'mute', label: 'video' }
-    ];
+    const modes = $derived<{ value: DownloadMode; label: string }[]>([
+        { value: 'auto', label: t('home.mode_auto') },
+        { value: 'audio', label: t('home.mode_audio') },
+        { value: 'mute', label: t('home.mode_video') }
+    ]);
 
     async function onSubmit(e: SubmitEvent) {
         e.preventDefault();
         if (!url.trim() || busy) return;
         if (!trimValid(trimStart) || !trimValid(trimEnd) || !trimValid(thumbnailAt)) {
-            errorMsg = 'invalid time format. use ss, mm:ss, or hh:mm:ss';
+            errorMsg = t('home.trim_invalid');
             return;
         }
 
@@ -58,7 +59,7 @@
                 enqueueOne(req.url, opts);
             }
         } catch (e) {
-            errorMsg = e instanceof SnagAPIError ? e.code : 'unexpected.error';
+            errorMsg = e instanceof SnagAPIError ? e.code : t('home.unexpected_error');
         } finally {
             busy = false;
         }
@@ -103,11 +104,15 @@
 <div class="hero">
     <section class="copy">
         <h1 class="headline">
-            Paste a <span class="accent">link</span>.<br />
-            We&rsquo;ll handle the rest.
+            {t('home.headline_prefix')}
+            <span class="accent">{t('home.headline_accent')}</span>.<br />
+            {t('home.headline_handle')}
         </h1>
         <p class="subline">
-            <span class="script">any video, audio, or photo &mdash; from 20+ <span class="underlined">places</span>.</span>
+            <span class="script"
+                >{t('home.subline_text')}
+                <span class="underlined">{t('home.subline_places')}</span>.</span
+            >
         </p>
     </section>
 
@@ -115,7 +120,7 @@
         {#if response && response.status !== 'error'}
             <div class="result">
                 {#if response.status === 'redirect' || response.status === 'tunnel'}
-                    <p class="result-label tracked">your file is ready</p>
+                    <p class="result-label tracked">{t('home.result_ready')}</p>
                     <a class="result-link" href={response.url} download={response.filename ?? ''}>
                         <span class="filename">{response.filename ?? 'download'}</span>
                         <span class="result-arrow" aria-hidden="true">&rarr;</span>
@@ -123,10 +128,14 @@
                 {:else if response.status === 'picker'}
                     <Picker {response} />
                 {:else if response.status === 'local-processing'}
-                    <p class="result-label tracked">in-browser processing</p>
+                    <p class="result-label tracked">{t('home.lp_label')}</p>
                     <p class="hint">
-                        {response.tunnel.length} stream{response.tunnel.length === 1 ? '' : 's'} to
-                        merge ({response.type}). nothing leaves your device.
+                        {response.tunnel.length === 1
+                            ? t('home.lp_summary_one', { n: 1, type: response.type })
+                            : t('home.lp_summary_many', {
+                                  n: response.tunnel.length,
+                                  type: response.type
+                              })}
                     </p>
                     {#if lpResult}
                         <a class="result-link" href={lpResult.blobUrl} download={lpResult.filename}>
@@ -136,25 +145,32 @@
                     {:else if lpRunning}
                         <p class="status mono">{lpPhase}</p>
                     {:else if lpError}
-                        <p class="error-code mono">local-processing failed: {lpError}</p>
+                        <p class="error-code mono">
+                            {t('home.lp_failed_prefix')}
+                            {lpError}
+                        </p>
                         <button type="button" class="reset tracked" onclick={startLocalProcessing}>
-                            try again
+                            {t('home.lp_try_again')}
                         </button>
                     {:else}
                         <button type="button" class="lp-go tracked" onclick={startLocalProcessing}>
-                            run in this tab &rarr;
+                            {t('home.lp_run')}
                         </button>
                     {/if}
                     <details class="streams-details">
-                        <summary class="tracked">or grab the raw streams</summary>
+                        <summary class="tracked">{t('home.lp_raw_streams')}</summary>
                         <ul class="streams mono">
-                            {#each response.tunnel as t, i}
-                                <li><a href={t} download>stream {i + 1}</a></li>
+                            {#each response.tunnel as tunnelUrl, i}
+                                <li>
+                                    <a href={tunnelUrl} download>
+                                        {t('home.lp_stream_label', { n: i + 1 })}
+                                    </a>
+                                </li>
                             {/each}
                         </ul>
                     </details>
                 {/if}
-                <button class="reset tracked" onclick={reset}>start over</button>
+                <button class="reset tracked" onclick={reset}>{t('home.result_start_over')}</button>
             </div>
         {:else}
             <form class="form" onsubmit={onSubmit}>
@@ -168,12 +184,28 @@
                         autocomplete="off"
                         spellcheck="false"
                         autocapitalize="off"
-                        aria-label="paste a URL"
+                        aria-label={t('home.url_aria')}
                     />
-                    <button class="go" type="submit" disabled={busy || !url.trim()} aria-label="submit">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4">
+                    <button
+                        class="go"
+                        type="submit"
+                        disabled={busy || !url.trim()}
+                        aria-label={t('home.submit_aria')}
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            width="14"
+                            height="14"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.4"
+                        >
                             <line x1="5" y1="12" x2="18" y2="12" stroke-linecap="round" />
-                            <polyline points="12 6 18 12 12 18" stroke-linecap="round" stroke-linejoin="round" />
+                            <polyline
+                                points="12 6 18 12 12 18"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
                         </svg>
                     </button>
                 </div>
@@ -202,7 +234,7 @@
                         onclick={() => (advancedOpen = !advancedOpen)}
                         aria-expanded={advancedOpen}
                     >
-                        {advancedOpen ? 'hide' : 'show'} advanced
+                        {advancedOpen ? t('home.advanced_hide') : t('home.advanced_show')}
                         <span class="adv-arrow" aria-hidden="true">{advancedOpen ? '−' : '+'}</span>
                     </button>
 
@@ -210,7 +242,9 @@
                         <div class="advanced-panel">
                             <div class="trim-row">
                                 <label class="trim-field">
-                                    <span class="trim-label tracked">trim start</span>
+                                    <span class="trim-label tracked"
+                                        >{t('home.advanced_trim_start')}</span
+                                    >
                                     <input
                                         type="text"
                                         class="trim-input mono"
@@ -223,7 +257,9 @@
                                     />
                                 </label>
                                 <label class="trim-field">
-                                    <span class="trim-label tracked">trim end</span>
+                                    <span class="trim-label tracked"
+                                        >{t('home.advanced_trim_end')}</span
+                                    >
                                     <input
                                         type="text"
                                         class="trim-input mono"
@@ -237,12 +273,14 @@
                                 </label>
                             </div>
                             <label class="trim-field">
-                                <span class="trim-label tracked">grab a single frame at</span>
+                                <span class="trim-label tracked"
+                                    >{t('home.advanced_thumbnail')}</span
+                                >
                                 <input
                                     type="text"
                                     class="trim-input mono"
                                     bind:value={thumbnailAt}
-                                    placeholder="00:00:30 — overrides trim, returns one JPEG"
+                                    placeholder={t('home.advanced_thumbnail_placeholder')}
                                     autocomplete="off"
                                     spellcheck="false"
                                     maxlength="16"
@@ -250,25 +288,27 @@
                                 />
                             </label>
                             <p class="adv-note">
-                                times use <span class="mono">ss</span>, <span class="mono">mm:ss</span>,
-                                or <span class="mono">hh:mm:ss</span>. for codec / container /
-                                resize / output kind / loudnorm, see <a href="/settings">settings</a>.
+                                {t('home.advanced_help_prefix')}
+                                <span class="mono">ss</span>,
+                                <span class="mono">mm:ss</span>{t('home.advanced_help_join')}
+                                <span class="mono">hh:mm:ss</span>{t('home.advanced_help_suffix')}
+                                <a href="/settings">{t('home.advanced_help_settings_link')}</a>.
                             </p>
                         </div>
                     {/if}
                 </div>
 
                 {#if busy}
-                    <p class="status mono">fetching…</p>
+                    <p class="status mono">{t('home.fetching')}</p>
                 {/if}
             </form>
         {/if}
 
         {#if errorMsg}
             <div class="error">
-                <p class="result-label tracked">error</p>
+                <p class="result-label tracked">{t('home.result_error')}</p>
                 <p class="error-code mono">{errorMsg}</p>
-                <button class="reset tracked" onclick={reset}>dismiss</button>
+                <button class="reset tracked" onclick={reset}>{t('home.result_dismiss')}</button>
             </div>
         {/if}
     </section>

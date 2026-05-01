@@ -1,0 +1,47 @@
+{
+    "home": {
+        "headline_prefix": "Paste a",
+        "headline_accent": "link",
+        "headline_handle": "We'll handle the rest.",
+        "subline_text": "any video, audio, or photo — from 20+",
+        "subline_places": "places",
+
+        "mode_auto": "auto",
+        "mode_audio": "audio",
+        "mode_video": "video",
+
+        "url_aria": "paste a URL",
+        "submit_aria": "submit",
+
+        "submit_idle": "snag it",
+        "submit_busy": "fetching…",
+        "fetching": "fetching…",
+
+        "advanced_show": "show advanced",
+        "advanced_hide": "hide advanced",
+        "advanced_trim_start": "trim start",
+        "advanced_trim_end": "trim end",
+        "advanced_thumbnail": "grab a single frame at",
+        "advanced_thumbnail_placeholder": "00:00:30 — overrides trim, returns one JPEG",
+        "advanced_help_prefix": "times use",
+        "advanced_help_join": ", or",
+        "advanced_help_suffix": ". for codec / container / resize / output kind / loudnorm, see",
+        "advanced_help_settings_link": "settings",
+
+        "result_ready": "your file is ready",
+        "result_start_over": "start over",
+        "result_dismiss": "dismiss",
+        "result_error": "error",
+        "trim_invalid": "invalid time format. use ss, mm:ss, or hh:mm:ss",
+        "unexpected_error": "unexpected.error",
+
+        "lp_label": "in-browser processing",
+        "lp_summary_one": "{n} stream to merge ({type}). nothing leaves your device.",
+        "lp_summary_many": "{n} streams to merge ({type}). nothing leaves your device.",
+        "lp_run": "run in this tab →",
+        "lp_failed_prefix": "local-processing failed:",
+        "lp_try_again": "try again",
+        "lp_raw_streams": "or grab the raw streams",
+        "lp_stream_label": "stream {n}"
+    }
+}
