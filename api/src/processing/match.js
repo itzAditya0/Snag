@@ -22,6 +22,7 @@ import streamable from "./services/streamable.js";
 import twitch from "./services/twitch.js";
 import rutube from "./services/rutube.js";
 import dailymotion from "./services/dailymotion.js";
+import imgur from "./services/imgur.js";
 import loom from "./services/loom.js";
 import bluesky from "./services/bluesky.js";
 import newgrounds from "./services/newgrounds.js";
@@ -202,6 +203,15 @@ export default async function({ host, patternMatch, params, authType }) {
 
             case "dailymotion":
                 r = await dailymotion(patternMatch);
+                break;
+
+            case "imgur":
+                r = await imgur({
+                    id: patternMatch.id,
+                    albumId: patternMatch.albumId,
+                    galleryId: patternMatch.galleryId,
+                    ext: patternMatch.ext,
+                });
                 break;
 
             case "loom":

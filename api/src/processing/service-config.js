@@ -23,6 +23,16 @@ export const services = {
     dailymotion: {
         patterns: ["video/:id"],
     },
+    imgur: {
+        patterns: [
+            "a/:albumId",
+            "gallery/:galleryId",
+            "t/:topic/:galleryId",
+            ":id.:ext",
+            ":id"
+        ],
+        subdomains: ["i", "m"],
+    },
     instagram: {
         patterns: [
             "p/:postId",

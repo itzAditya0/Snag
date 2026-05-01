@@ -102,6 +102,7 @@ export default function({
                 case "instagram":
                 case "twitter":
                 case "bsky":
+                case "imgur":
                     params = { picker: r.picker };
                     break;
             }
@@ -159,6 +160,7 @@ export default function({
                     params = { type: "proxy" };
                     break;
 
+                case "imgur":
                 case "instagram":
                 case "tumblr":
                 case "pinterest":

@@ -20,6 +20,7 @@ if the desired service isn't supported yet, feel free to create an appropriate i
 | bilibili          | ✅            | ✅         | ✅         | ➖         | ➖              |
 | bluesky           | ✅            | ✅         | ✅         | ➖         | ➖              |
 | dailymotion       | ✅            | ✅         | ✅         | ✅         | ✅              |
+| imgur             | ➖            | ➖         | ✅         | ➖         | ➖              |
 | instagram         | ✅            | ✅         | ✅         | ➖         | ➖              |
 | loom              | ✅            | ❌         | ✅         | ✅         | ➖              |
 | newgrounds        | ✅            | ✅         | ✅         | ✅         | ✅              |
@@ -44,6 +45,7 @@ if the desired service isn't supported yet, feel free to create an appropriate i
 ### additional notes or features (per service)
 | service    | notes or features                                                                                                    |
 | :--------  | :-----                                                                                                               |
+| imgur      | supports single posts, direct media URLs, albums, and galleries. lets you pick what to save from multi-item albums.  |
 | instagram  | supports reels, photos, and videos. lets you pick what to save from multi-media posts.                               |
 | pinterest  | supports photos, gifs, videos and stories.                                                                           |
 | reddit     | supports gifs and videos.                                                                                            |

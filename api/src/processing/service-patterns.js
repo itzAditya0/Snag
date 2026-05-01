@@ -10,6 +10,16 @@ export const testers = {
 
     "dailymotion": pattern => pattern.id?.length <= 32,
 
+    "imgur": pattern => {
+        if (pattern.albumId) return pattern.albumId.length <= 16;
+        if (pattern.galleryId) return pattern.galleryId.length <= 16;
+        if (pattern.id && pattern.ext) {
+            return pattern.id.length <= 12 && pattern.ext.length <= 5;
+        }
+        if (pattern.id) return pattern.id.length <= 12 && !pattern.id.includes('.');
+        return false;
+    },
+
     "instagram": pattern =>
         pattern.postId?.length <= 48 ||
         pattern.shareId?.length <= 16 ||
