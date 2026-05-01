@@ -4,4 +4,4 @@
 export const apiURL = import.meta.env.VITE_API_URL ?? 'http://localhost:9000';
 export const projectName = 'snag';
 export const projectTagline = 'paste a link, get the file';
-export const projectRepo = 'https://github.com/REPLACE_ME/snag';
+export const projectRepo = 'https://github.com/itzAditya0/Snag';

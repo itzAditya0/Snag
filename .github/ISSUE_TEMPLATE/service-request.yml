@@ -8,7 +8,7 @@ body:
       value: |
         thanks for taking the time to make a service request!
         before you start, please make to read the "adding features or support for services" section of
-        our [contributor guidelines](https://github.com/REPLACE_ME/snag/blob/main/CONTRIBUTING.md#adding-features-or-support-for-services) to make sure your request is a good fit for snag.
+        our [contributor guidelines](https://github.com/itzAditya0/Snag/blob/main/CONTRIBUTING.md#adding-features-or-support-for-services) to make sure your request is a good fit for snag.
   - type: input
     id: service-name
     attributes:

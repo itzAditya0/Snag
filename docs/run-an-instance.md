@@ -40,7 +40,7 @@ requirements:
 - git
 - pnpm
 
-1. clone the repo: `git clone https://github.com/REPLACE_ME/snag`.
+1. clone the repo: `git clone https://github.com/itzAditya0/Snag`.
 2. go to api directory: `cd snag/api`.
 3. install dependencies: `pnpm install`.
 4. create `.env` file in the same directory.
@@ -49,7 +49,7 @@ requirements:
 6. run snag: `pnpm start`.
 
 ### ubuntu 22.04 workaround
-`nscd` needs to be installed and running so that the `ffmpeg-static` binary can resolve DNS ([#101](https://github.com/REPLACE_ME/snag/issues/101#issuecomment-1494822258)):
+`nscd` needs to be installed and running so that the `ffmpeg-static` binary can resolve DNS ([#101](https://github.com/itzAditya0/Snag/issues/101#issuecomment-1494822258)):
 
 ```bash
 sudo apt install nscd

@@ -1,6 +1,6 @@
 services:
     snag:
-        image: ghcr.io/REPLACE_ME/snag:11
+        image: ghcr.io/itzAditya0/Snag:11
 
         init: true
         read_only: true

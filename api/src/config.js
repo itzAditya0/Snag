@@ -7,7 +7,7 @@ const canonicalEnv = Object.freeze(structuredClone(process.env));
 const env = loadEnvs();
 
 const genericUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
-const snagUserAgent = `snag/${version} (+https://github.com/REPLACE_ME/snag)`;
+const snagUserAgent = `snag/${version} (+https://github.com/itzAditya0/Snag)`;
 
 export const setTunnelPort = (port) => env.tunnelPort = port;
 export const isCluster = env.instanceCount > 1;
