@@ -1,0 +1,169 @@
+// Package download writes a snag-api response to disk, picking a
+// filename and showing a progress bar.
+package download
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/schollz/progressbar/v3"
+
+	"github.com/snag/snag-cli/internal/client"
+)
+
+// Save streams a response payload to disk. If outputPath is empty,
+// the filename from the API response (or HTTP Content-Disposition)
+// is used, falling back to "snag-download" when neither is present.
+// Returns the final on-disk path written.
+func Save(c *client.Client, resp *client.Response, outputPath string, quiet bool) (string, error) {
+	if resp == nil {
+		return "", errors.New("nil response")
+	}
+
+	switch resp.Status {
+	case "redirect", "tunnel":
+		return saveSingle(c, resp.URL, resp.Filename, outputPath, quiet)
+	case "picker":
+		return "", fmt.Errorf("picker responses (%d items) require --pick or interactive mode (not yet supported by the cli)", len(resp.Picker))
+	case "local-processing":
+		return "", fmt.Errorf("local-processing responses are handled by the web frontend; set localProcessing=disabled in /settings or via --local-processing=disabled to have the server merge instead")
+	case "error":
+		if resp.Error != nil {
+			return "", fmt.Errorf("api error: %s", resp.Error.Code)
+		}
+		return "", errors.New("api error: unknown")
+	case "batch":
+		return "", errors.New("batch responses are handled by the batch command, not save")
+	default:
+		return "", fmt.Errorf("unsupported response status %q", resp.Status)
+	}
+}
+
+func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool) (string, error) {
+	if url == "" {
+		return "", errors.New("response missing url")
+	}
+
+	dl, err := c.Fetch(url)
+	if err != nil {
+		return "", err
+	}
+	defer dl.Reader.Close()
+
+	finalPath, err := resolveOutputPath(outputPath, filename, dl.Filename)
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0o755); err != nil {
+		return "", err
+	}
+
+	tmp := finalPath + ".part"
+	f, err := os.Create(tmp)
+	if err != nil {
+		return "", fmt.Errorf("create %s: %w", tmp, err)
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	var dst io.Writer = f
+	var bar *progressbar.ProgressBar
+	if !quiet {
+		desc := filepath.Base(finalPath)
+		if dl.Size > 0 {
+			bar = progressbar.NewOptions64(
+				dl.Size,
+				progressbar.OptionSetDescription(desc),
+				progressbar.OptionShowBytes(true),
+				progressbar.OptionSetWidth(30),
+				progressbar.OptionThrottle(100*1e6),
+				progressbar.OptionClearOnFinish(),
+			)
+		} else {
+			bar = progressbar.NewOptions(-1,
+				progressbar.OptionSetDescription(desc),
+				progressbar.OptionSpinnerType(14),
+				progressbar.OptionShowBytes(true),
+				progressbar.OptionClearOnFinish(),
+			)
+		}
+		dst = io.MultiWriter(f, bar)
+	}
+
+	if _, err := io.Copy(dst, dl.Reader); err != nil {
+		_ = os.Remove(tmp)
+		return "", fmt.Errorf("write %s: %w", tmp, err)
+	}
+	if bar != nil {
+		_ = bar.Finish()
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	if err := os.Rename(tmp, finalPath); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	return finalPath, nil
+}
+
+// resolveOutputPath chooses the final on-disk path:
+//   - if outputPath ends in a separator or is an existing dir, treat
+//     it as a directory and use one of the candidate filenames inside it.
+//   - if outputPath has no extension and points at a non-existing file,
+//     also treat it as a target dir for safety.
+//   - otherwise outputPath is the literal file path the user asked for.
+//   - if outputPath is empty, write to the current working directory
+//     using the first non-empty candidate.
+func resolveOutputPath(outputPath, apiFilename, httpFilename string) (string, error) {
+	candidates := []string{apiFilename, httpFilename, "snag-download"}
+	pick := func() string {
+		for _, c := range candidates {
+			c = strings.TrimSpace(c)
+			if c != "" {
+				return c
+			}
+		}
+		return "snag-download"
+	}
+
+	if outputPath == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(cwd, sanitiseFilename(pick())), nil
+	}
+
+	// directory if it ends in separator
+	if strings.HasSuffix(outputPath, string(os.PathSeparator)) {
+		return filepath.Join(outputPath, sanitiseFilename(pick())), nil
+	}
+
+	// directory if it exists as a directory
+	if info, err := os.Stat(outputPath); err == nil && info.IsDir() {
+		return filepath.Join(outputPath, sanitiseFilename(pick())), nil
+	}
+
+	// otherwise treat as literal file path
+	return outputPath, nil
+}
+
+// sanitiseFilename strips path separators so a server-suggested
+// filename can never escape the chosen directory.
+func sanitiseFilename(name string) string {
+	name = strings.ReplaceAll(name, "/", "_")
+	name = strings.ReplaceAll(name, "\\", "_")
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "snag-download"
+	}
+	return name
+}
