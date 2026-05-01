@@ -2,6 +2,7 @@
     import { submit, SnagAPIError } from '$lib/api/client';
     import type { SnagResponse } from '$types/api';
     import { settings, buildRequest } from '$stores/settings.svelte';
+    import Picker from '$components/picker/Picker.svelte';
 
     let url = $state('');
     let busy = $state(false);
@@ -99,11 +100,23 @@
                     download {response.filename ?? 'file'}
                 </a>
             {:else if response.status === 'picker'}
-                <p>this URL contains multiple items. picker UI coming soon.</p>
-                <pre>{JSON.stringify(response.picker, null, 2)}</pre>
+                <Picker {response} />
             {:else if response.status === 'local-processing'}
-                <p>this download requires client-side processing. local-processing UI coming soon.</p>
-                <pre>{JSON.stringify(response, null, 2)}</pre>
+                <p>
+                    this download requires in-browser processing
+                    ({response.tunnel.length} streams, type: <code>{response.type}</code>).
+                    client-side FFmpeg-WASM support is on the roadmap. for now you can change
+                    "local processing" to <code>disabled</code> in
+                    <a href="/settings">settings</a> to have the server merge for you, or download
+                    the streams individually below.
+                </p>
+                <ul class="stream-list">
+                    {#each response.tunnel as t, i}
+                        <li>
+                            <a href={t} download>stream {i + 1}</a>
+                        </li>
+                    {/each}
+                </ul>
             {/if}
             <button class="reset" onclick={reset}>start over</button>
         </div>
@@ -278,18 +291,18 @@
         color: var(--text);
     }
 
-    pre {
-        margin: 0;
-        padding: 0.75rem;
-        background: var(--surface-elevated);
-        border-radius: var(--radius-sm);
-        font-size: 0.8rem;
-        overflow-x: auto;
-        white-space: pre-wrap;
-        word-break: break-all;
-    }
-
     code {
         font-size: 0.9em;
+        padding: 0.05em 0.3em;
+        background: var(--surface-elevated);
+        border-radius: 0.25em;
+    }
+
+    .stream-list {
+        margin: 0;
+        padding-left: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
     }
 </style>
