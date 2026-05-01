@@ -27,6 +27,9 @@ export default function({
     videoContainer,
     targetHeight,
     burnSubtitles,
+    outputFormat,
+    normalizeAudio,
+    thumbnailAt,
 }) {
     let action,
         responseType = "tunnel",
@@ -53,6 +56,21 @@ export default function({
     else if (r.isHLS) action = "hls";
     else action = "video";
 
+    // F2 Polish — outputFormat / thumbnailAt rewrite the action so the
+    // pipeline switches to the right ffmpeg flow. thumbnailAt wins over
+    // outputFormat. doesn't apply to picker / photo content.
+    if (action !== "photo" && action !== "picker") {
+        if (thumbnailAt) {
+            action = "thumbnail";
+        } else if (outputFormat === "audio") {
+            action = "audio";
+        } else if (outputFormat === "gif") {
+            action = "gif";
+        } else if (outputFormat === "webp") {
+            action = "webp";
+        }
+    }
+
     if (action === "picker" || action === "audio") {
         if (!r.filenameAttributes) defaultParams.filename = r.audioFilename;
         defaultParams.audioFormat = audioFormat;
@@ -62,8 +80,17 @@ export default function({
         const [ name, ext ] = splitFilenameExtension(r.filename);
         defaultParams.filename = `${name}_mute.${ext}`;
     } else if (action === "gif") {
-        const [ name ] = splitFilenameExtension(r.filename);
+        // defaultParams.filename was already resolved from filenameAttributes
+        // or r.filename above — use it so YouTube etc. (where r.filename
+        // alone is undefined) doesn't crash splitFilenameExtension.
+        const [ name ] = splitFilenameExtension(defaultParams.filename || "media");
         defaultParams.filename = `${name}.gif`;
+    } else if (action === "webp") {
+        const [ name ] = splitFilenameExtension(defaultParams.filename || "media");
+        defaultParams.filename = `${name}.webp`;
+    } else if (action === "thumbnail") {
+        const [ name ] = splitFilenameExtension(defaultParams.filename || "media");
+        defaultParams.filename = `${name}.jpg`;
     }
 
     switch (action) {
@@ -78,6 +105,16 @@ export default function({
 
         case "gif":
             params = { type: "gif" };
+            break;
+
+        case "webp":
+            params = { type: "webp" };
+            responseType = "tunnel";
+            break;
+
+        case "thumbnail":
+            params = { type: "thumbnail" };
+            responseType = "tunnel";
             break;
 
         case "hls":
@@ -262,7 +299,7 @@ export default function({
         (videoContainer && videoContainer !== "auto") ||
         (targetHeight && targetHeight !== "source") ||
         burnSubtitles;
-    if (wantsConversion && action !== "photo" && action !== "picker" && action !== "audio" && action !== "gif") {
+    if (wantsConversion && action !== "photo" && action !== "picker" && action !== "audio" && action !== "gif" && action !== "webp" && action !== "thumbnail") {
         if (responseType === "redirect" || (responseType === "tunnel" && params.type === "proxy")) {
             params.type = "remux";
             responseType = "tunnel";
@@ -281,6 +318,28 @@ export default function({
                         (dot > 0 ? fn.slice(0, dot) : fn) + "." + videoContainer;
                 }
             }
+        }
+    }
+
+    // F2 Polish — outputFormat / thumbnailAt / normalizeAudio also force
+    // tunnel and need their own params threaded into streamInfo. action
+    // overrides above already routed dispatch; this sets the FFmpeg knobs.
+    const wantsPolish =
+        thumbnailAt ||
+        (outputFormat && outputFormat !== "video") ||
+        (normalizeAudio && normalizeAudio !== "off");
+    if (wantsPolish && action !== "photo" && action !== "picker") {
+        if (responseType === "redirect") {
+            responseType = "tunnel";
+            // thumbnail / webp / gif / audio dispatch types are already
+            // set by the action switch above; only fall back to remux
+            // when nothing more specific applies.
+            if (!params.type) params.type = "remux";
+        }
+        if (responseType === "tunnel" || responseType === "local-processing") {
+            params.thumbnailAt = thumbnailAt;
+            params.outputFormat = outputFormat;
+            params.normalizeAudio = normalizeAudio;
         }
     }
 

@@ -307,6 +307,9 @@ export default async function({ host, patternMatch, params, authType }) {
             videoContainer: params.videoContainer,
             targetHeight: params.targetHeight,
             burnSubtitles: params.burnSubtitles,
+            outputFormat: params.outputFormat,
+            normalizeAudio: params.normalizeAudio,
+            thumbnailAt: params.thumbnailAt,
         })
     } catch {
         return createResponse("error", {

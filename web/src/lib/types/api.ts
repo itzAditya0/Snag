@@ -48,6 +48,11 @@ export interface SnagRequest {
     videoContainer?: 'auto' | 'mp4' | 'mkv' | 'webm';
     targetHeight?: 'source' | '2160' | '1440' | '1080' | '720' | '480' | '360';
     burnSubtitles?: boolean;
+
+    // F2 Polish — output format switch + LUFS + thumbnail.
+    outputFormat?: 'video' | 'gif' | 'webp' | 'audio';
+    normalizeAudio?: 'off' | 'ebu' | 'broadcast';
+    thumbnailAt?: string;
 }
 
 export type ResponseStatus = 'redirect' | 'tunnel' | 'local-processing' | 'picker' | 'error';

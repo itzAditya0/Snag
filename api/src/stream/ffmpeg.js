@@ -58,6 +58,12 @@ const buildInputs = (urls, streamInfo) => {
     });
 };
 
+// pick the primary (video) URL from streamInfo.urls. for YouTube and other
+// DASH sources, urls is [video, audio] and the gif/webp/thumbnail flows
+// only need the video stream.
+const primarySource = (streamInfo) =>
+    Array.isArray(streamInfo.urls) ? streamInfo.urls[0] : streamInfo.urls;
+
 // F2 Basic — true when any output conversion is requested.
 const wantsConversion = (streamInfo) =>
     (streamInfo.videoCodec && streamInfo.videoCodec !== "auto") ||
@@ -248,6 +254,15 @@ const remux = async (streamInfo, res) => {
         }
     }
 
+    // F2 Polish — loudnorm forces an audio re-encode and overrides any
+    // earlier -c:a copy / hls codec choice. only applies when there's
+    // an audio track to normalise.
+    const remuxLoudnorm = loudnormFilter(streamInfo.normalizeAudio);
+    if (remuxLoudnorm && streamInfo.type !== 'mute') {
+        const ab = streamInfo.audioBitrate || '192';
+        args.push('-af', remuxLoudnorm, '-c:a', 'aac', '-b:a', `${ab}k`);
+    }
+
     if (streamInfo.metadata) {
         args.push(...convertMetadataToFFmpeg(streamInfo.metadata));
     }
@@ -257,6 +272,14 @@ const remux = async (streamInfo, res) => {
     await render(res, streamInfo, args);
 }
 
+// F2 Polish — ffmpeg loudnorm filter targets. EBU R128 is the streaming
+// default (-23 LUFS); broadcast is the louder TV/web cut (-16 LUFS).
+const loudnormFilter = (mode) => {
+    if (mode === "ebu") return "loudnorm=I=-23:LRA=7:TP=-2";
+    if (mode === "broadcast") return "loudnorm=I=-16:LRA=11:TP=-1";
+    return null;
+};
+
 const convertAudio = async (streamInfo, res) => {
     const inputArgs = [];
     if (streamInfo.trimStart) inputArgs.push('-ss', streamInfo.trimStart);
@@ -265,10 +288,15 @@ const convertAudio = async (streamInfo, res) => {
     const trimDuration = computeTrimDuration(streamInfo);
     if (trimDuration) inputArgs.push('-t', trimDuration);
 
+    // loudnorm forces a re-encode, so it's incompatible with -c:a copy.
+    const loudnorm = loudnormFilter(streamInfo.normalizeAudio);
+    const audioCopy = streamInfo.audioCopy && !loudnorm;
+
     const args = [
         ...inputArgs,
         '-vn',
-        ...(streamInfo.audioCopy ? ['-c:a', 'copy'] : ['-b:a', `${streamInfo.audioBitrate}k`]),
+        ...(loudnorm ? ['-af', loudnorm] : []),
+        ...(audioCopy ? ['-c:a', 'copy'] : ['-b:a', `${streamInfo.audioBitrate}k`]),
     ];
 
     if (streamInfo.audioFormat === 'mp3' && streamInfo.audioBitrate === '8') {
@@ -304,17 +332,24 @@ const convertAudio = async (streamInfo, res) => {
 const convertGif = async (streamInfo, res) => {
     const inputArgs = [];
     if (streamInfo.trimStart) inputArgs.push('-ss', streamInfo.trimStart);
-    inputArgs.push('-i', streamInfo.urls);
+    inputArgs.push('-i', primarySource(streamInfo));
 
     const trimDuration = computeTrimDuration(streamInfo);
     if (trimDuration) inputArgs.push('-t', trimDuration);
+
+    // honour targetHeight when set; otherwise scale=-1:-1 keeps source dims.
+    const scale =
+        streamInfo.targetHeight && streamInfo.targetHeight !== "source"
+            ? `scale=-2:${streamInfo.targetHeight}:flags=lanczos`
+            : `scale=-1:-1:flags=lanczos`;
 
     const args = [
         ...inputArgs,
 
         '-vf',
-        'scale=-1:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
+        `${scale},split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse`,
         '-loop', '0',
+        '-an',
 
         '-f', 'gif', 'pipe:3',
     ];
@@ -327,8 +362,54 @@ const convertGif = async (streamInfo, res) => {
     );
 }
 
+// F2 Polish — animated WebP via libwebp. accepts trim window like the
+// other flows. resize (targetHeight) honoured if set; default 480.
+const convertWebP = async (streamInfo, res) => {
+    const inputArgs = [];
+    if (streamInfo.trimStart) inputArgs.push('-ss', streamInfo.trimStart);
+    inputArgs.push('-i', primarySource(streamInfo));
+
+    const trimDuration = computeTrimDuration(streamInfo);
+    if (trimDuration) inputArgs.push('-t', trimDuration);
+
+    const targetHeight =
+        streamInfo.targetHeight && streamInfo.targetHeight !== "source"
+            ? streamInfo.targetHeight
+            : "480";
+
+    const args = [
+        ...inputArgs,
+        '-vf', `scale=-2:${targetHeight}:flags=lanczos`,
+        '-c:v', 'libwebp',
+        '-loop', '0',
+        '-q:v', '70',
+        '-an',
+        '-f', 'webp', 'pipe:3',
+    ];
+
+    await render(res, streamInfo, args, 30);
+};
+
+// F2 Polish — single JPEG frame at thumbnailAt. fast input seek with
+// -frames:v 1 keeps it cheap.
+const convertThumbnail = async (streamInfo, res) => {
+    const at = streamInfo.thumbnailAt || "0";
+    const args = [
+        '-ss', at,
+        '-i', primarySource(streamInfo),
+        '-frames:v', '1',
+        '-q:v', '2',
+        '-an',
+        '-f', 'mjpeg', 'pipe:3',
+    ];
+
+    await render(res, streamInfo, args, 1);
+};
+
 export default {
     remux,
     convertAudio,
     convertGif,
+    convertWebP,
+    convertThumbnail,
 }

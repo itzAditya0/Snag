@@ -55,6 +55,11 @@ export function createStream(obj) {
             videoContainer: obj.videoContainer,
             targetHeight: obj.targetHeight,
             burnSubtitles: obj.burnSubtitles,
+
+            // F2 Polish — output format switch, audio loudnorm, thumbnail.
+            outputFormat: obj.outputFormat,
+            normalizeAudio: obj.normalizeAudio,
+            thumbnailAt: obj.thumbnailAt,
         };
 
     // FIXME: this is now a Promise, but it is not awaited

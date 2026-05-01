@@ -76,5 +76,24 @@ export const apiSchema = z.object({
     videoContainer: z.enum(["auto", "mp4", "mkv", "webm"]).default("auto"),
     targetHeight: z.enum(["source", "2160", "1440", "1080", "720", "480", "360"]).default("source"),
     burnSubtitles: z.boolean().default(false),
+
+    // F2 Polish — switch the whole output pipeline.
+    //  video      — default; honours all the F2 Basic knobs
+    //  gif        — animated gif via the existing palette/paletteuse chain
+    //  webp       — animated webp via libwebp
+    //  audio      — force audio-only regardless of downloadMode
+    outputFormat: z.enum(["video", "gif", "webp", "audio"]).default("video"),
+
+    // F2 Polish — apply ffmpeg loudnorm to the audio track. ebu R128
+    // targets streaming-friendly -23 LUFS; broadcast targets -16 LUFS.
+    normalizeAudio: z.enum(["off", "ebu", "broadcast"]).default("off"),
+
+    // F2 Polish — return a single JPEG frame at the given timestamp
+    // instead of streaming the full media. accepts the same time format
+    // as trimStart / trimEnd.
+    thumbnailAt: z.string()
+                  .max(16)
+                  .regex(/^(\d+(\.\d{1,3})?|(\d{1,2}:){1,2}\d{1,2}(\.\d{1,3})?)$/)
+                  .optional(),
 })
 .strict();

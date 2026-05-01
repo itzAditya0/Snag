@@ -23,6 +23,12 @@ export default async function(res, streamInfo) {
 
             case "gif":
                 return await ffmpeg.convertGif(streamInfo, res);
+
+            case "webp":
+                return await ffmpeg.convertWebP(streamInfo, res);
+
+            case "thumbnail":
+                return await ffmpeg.convertThumbnail(streamInfo, res);
         }
 
         closeResponse(res);
