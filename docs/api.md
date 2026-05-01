@@ -84,14 +84,40 @@ all keys except for `url` are optional. value options are separated by `/`.
 #### service-specific options
 | key                     | type      | description/value                                 | default |
 |:------------------------|:----------|:--------------------------------------------------|:--------|
-| `youtubeVideoCodec`     | `string`  | `h264 / av1 / vp9`                                | `h264`  |
-| `youtubeVideoContainer` | `string`  | `auto / mp4 / webm / mkv`                         | `auto`  |
+| `youtubeVideoCodec`     | `string`  | `h264 / av1 / vp9` — selects which YouTube source stream to fetch | `h264`  |
+| `youtubeVideoContainer` | `string`  | `auto / mp4 / webm / mkv` — preferred YouTube container | `auto`  |
 | `youtubeDubLang`        | `string`  | any valid ISO 639-1 language code                 | *none*  |
 | `convertGif`            | `boolean` | convert twitter gifs to the actual GIF format     | `true`  |
-| `allowH265`             | `boolean` | allow H265/HEVC videos from tiktok                | `false` |
-| `tiktokFullAudio`       | `boolean` | download the original sound used in a video       | `false` |
+| `allowH265`             | `boolean` | allow H265/HEVC videos from compatible services   | `false` |
 | `youtubeBetterAudio`    | `boolean` | prefer higher quality youtube audio if possible   | `false` |
 | `youtubeHLS`            | `boolean` | use HLS formats when downloading from youtube     | `false` |
+
+#### F2 — output format conversion (snag-only)
+any non-default value forces the response through ffmpeg server-side. these
+operate on the *output*, distinct from the YouTube-source picker fields above.
+
+| key              | type      | description/value                                  | default  |
+|:-----------------|:----------|:---------------------------------------------------|:---------|
+| `videoCodec`     | `string`  | `auto / h264 / h265 / av1 / vp9` — re-encode codec | `auto`   |
+| `videoContainer` | `string`  | `auto / mp4 / mkv / webm` — output container       | `auto`   |
+| `targetHeight`   | `string`  | `source / 2160 / 1440 / 1080 / 720 / 480 / 360`    | `source` |
+| `burnSubtitles`  | `boolean` | hardcode the subtitle track into pixels (forces re-encode) | `false`  |
+| `outputFormat`   | `string`  | `video / gif / webp / audio` — switches the output kind entirely | `video` |
+| `normalizeAudio` | `string`  | `off / ebu / broadcast` — applies ffmpeg loudnorm (`-23 LUFS` for ebu R128, `-16 LUFS` for broadcast) | `off` |
+
+#### F3 — frame trim (snag-only)
+trims the output to a window. accepts `ss[.mmm]`, `mm:ss[.mmm]`, or
+`hh:mm:ss[.mmm]`. fast input-side seek under `-c copy`.
+
+| key         | type     | description/value                  | default |
+|:------------|:---------|:-----------------------------------|:--------|
+| `trimStart` | `string` | clip start time, as above          | *none*  |
+| `trimEnd`   | `string` | clip end time, as above            | *none*  |
+
+#### F2 polish — single frame (snag-only)
+| key           | type     | description/value                                                | default |
+|:--------------|:---------|:-----------------------------------------------------------------|:--------|
+| `thumbnailAt` | `string` | timestamp; the response is one JPEG frame at that point. overrides trim. | *none*  |
 
 ### response
 body type: `application/json`
@@ -186,6 +212,45 @@ all keys in this table are optional.
 |:-------------|:---------|:----------------------------------------------------------------------------|
 | `service`    | `string` | origin service (optional)                                                   |
 | `limit`      | `number` | the maximum downloadable video duration or the rate limit window (optional) |
+
+## POST `/batch` (snag-only) — F4
+download many URLs in a single round-trip with the same shared options.
+the request body shape is the same as `POST /` plus a `urls` array
+instead of a single `url`. snag processes the URLs server-side with
+bounded concurrency and returns an array of standard responses (the
+same shapes you'd get from `POST /`) in submission order.
+
+  - up to **50 urls per batch**
+  - each url is independent: a per-url failure does not abort the batch
+  - one batch counts as **one** request against the api rate limit
+  - body limit is 16 KiB (vs `POST /`'s 1 KiB) to fit the url list
+
+### request body
+| key    | type       | description                                                |
+|:-------|:-----------|:-----------------------------------------------------------|
+| `urls` | `string[]` | 1–50 source URLs                                           |
+| ...    | ...        | every other field documented above is supported as-is and applies to all urls |
+
+### response body
+```json
+{
+  "status": "batch",
+  "results": [
+    { "status": "tunnel",  "url": "...", "filename": "..." },
+    { "status": "redirect", "url": "...", "filename": "..." },
+    { "status": "error",   "error": { "code": "error.api.link.invalid" } },
+    ...
+  ]
+}
+```
+
+### error responses (batch-level)
+| code                                | meaning                                              |
+|:------------------------------------|:-----------------------------------------------------|
+| `error.api.batch.invalid_size`      | `urls` is missing, empty, or longer than 50 entries |
+| `error.api.batch.invalid_url`       | one of the entries is not a non-empty string        |
+| `error.api.header.accept`           | request `Accept` header missing or wrong            |
+| `error.api.header.content_type`     | request `Content-Type` header missing or wrong      |
 
 ## POST `/session`
 used for generating JWT tokens, if enabled. currently, snag only supports
