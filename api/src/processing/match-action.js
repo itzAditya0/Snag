@@ -21,6 +21,8 @@ export default function({
     audioBitrate,
     alwaysProxy,
     localProcessing,
+    trimStart,
+    trimEnd,
 }) {
     let action,
         responseType = "tunnel",
@@ -234,6 +236,19 @@ export default function({
 
         if (localProcessing === "forced" || isPreferredWithExtra) {
             responseType = "local-processing";
+        }
+    }
+
+    // F3 — trim. when trimStart/trimEnd is set, force the response through
+    // FFmpeg so the cut is actually applied. photos/pickers can't be trimmed.
+    if ((trimStart || trimEnd) && action !== "photo" && action !== "picker") {
+        if (responseType === "redirect" || (responseType === "tunnel" && params.type === "proxy")) {
+            params.type = action === "audio" ? "audio" : "remux";
+            responseType = "tunnel";
+        }
+        if (responseType === "tunnel" || responseType === "local-processing") {
+            params.trimStart = trimStart;
+            params.trimEnd = trimEnd;
         }
     }
 

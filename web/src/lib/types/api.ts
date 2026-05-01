@@ -38,6 +38,10 @@ export interface SnagRequest {
     alwaysProxy?: boolean;
     youtubeHLS?: boolean;
     youtubeBetterAudio?: boolean;
+
+    // F3 — trim. accepts "ss[.mmm]", "mm:ss[.mmm]", or "hh:mm:ss[.mmm]".
+    trimStart?: string;
+    trimEnd?: string;
 }
 
 export type ResponseStatus = 'redirect' | 'tunnel' | 'local-processing' | 'picker' | 'error';

@@ -59,5 +59,15 @@ export const apiSchema = z.object({
 
     youtubeHLS: z.boolean().default(false),
     youtubeBetterAudio: z.boolean().default(false),
+
+    // F3 — trim. accepts "ss[.mmm]", "mm:ss[.mmm]", or "hh:mm:ss[.mmm]".
+    trimStart: z.string()
+                .max(16)
+                .regex(/^(\d+(\.\d{1,3})?|(\d{1,2}:){1,2}\d{1,2}(\.\d{1,3})?)$/)
+                .optional(),
+    trimEnd: z.string()
+              .max(16)
+              .regex(/^(\d+(\.\d{1,3})?|(\d{1,2}:){1,2}\d{1,2}(\.\d{1,3})?)$/)
+              .optional(),
 })
 .strict();

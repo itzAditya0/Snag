@@ -301,6 +301,8 @@ export default async function({ host, patternMatch, params, authType }) {
             audioBitrate: params.audioBitrate,
             alwaysProxy: params.alwaysProxy || localProcessing === "forced",
             localProcessing,
+            trimStart: params.trimStart,
+            trimEnd: params.trimEnd,
         })
     } catch {
         return createResponse("error", {

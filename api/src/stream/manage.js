@@ -45,6 +45,10 @@ export function createStream(obj) {
 
             // url to a subtitle file
             subtitles: obj.subtitles,
+
+            // F3 — trim. validated by api schema before reaching here.
+            trimStart: obj.trimStart,
+            trimEnd: obj.trimEnd,
         };
 
     // FIXME: this is now a Promise, but it is not awaited

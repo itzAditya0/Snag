@@ -20,6 +20,44 @@ const metadataTags = new Set([
     "sublanguage"
 ]);
 
+// parse "ss[.mmm]", "mm:ss[.mmm]", or "hh:mm:ss[.mmm]" into seconds.
+// returns NaN for unparseable input.
+const trimToSeconds = (t) => {
+    if (typeof t !== "string") return NaN;
+    if (t.includes(":")) {
+        const parts = t.split(":");
+        if (parts.length < 2 || parts.length > 3) return NaN;
+        return parts.reduce(
+            (acc, p, i) => acc + parseFloat(p) * Math.pow(60, parts.length - 1 - i),
+            0
+        );
+    }
+    return parseFloat(t);
+};
+
+// F3 — trim. compute -t <duration> from {trimStart, trimEnd}, returns null
+// if no trim is requested or if the duration is non-positive.
+const computeTrimDuration = (streamInfo) => {
+    if (!streamInfo.trimEnd) return null;
+    const start = streamInfo.trimStart ? trimToSeconds(streamInfo.trimStart) : 0;
+    const end = trimToSeconds(streamInfo.trimEnd);
+    if (Number.isNaN(start) || Number.isNaN(end)) return null;
+    const dur = end - start;
+    return dur > 0 ? dur.toFixed(3) : null;
+};
+
+// build inputs with optional fast input-side seek (-ss before -i).
+// trim is applied to every input in a multi-input merge so that the merged
+// streams stay aligned.
+const buildInputs = (urls, streamInfo) => {
+    return urls.flatMap((url) => {
+        const a = [];
+        if (streamInfo.trimStart) a.push("-ss", streamInfo.trimStart);
+        a.push("-i", url);
+        return a;
+    });
+};
+
 const convertMetadataToFFmpeg = (metadata) => {
     const args = [];
 
@@ -99,11 +137,16 @@ const render = async (res, streamInfo, ffargs, estimateMultiplier) => {
 const remux = async (streamInfo, res) => {
     const format = streamInfo.filename.split('.').pop();
     const urls = Array.isArray(streamInfo.urls) ? streamInfo.urls : [streamInfo.urls];
-    const args = urls.flatMap(url => ['-i', url]);
+    const args = buildInputs(urls, streamInfo);
 
     // if the stream type is merge, we expect two URLs
     if (streamInfo.type === 'merge' && urls.length !== 2) {
         return closeResponse(res);
+    }
+
+    const trimDuration = computeTrimDuration(streamInfo);
+    if (trimDuration) {
+        args.push('-t', trimDuration);
     }
 
     if (streamInfo.subtitles) {
@@ -153,8 +196,15 @@ const remux = async (streamInfo, res) => {
 }
 
 const convertAudio = async (streamInfo, res) => {
+    const inputArgs = [];
+    if (streamInfo.trimStart) inputArgs.push('-ss', streamInfo.trimStart);
+    inputArgs.push('-i', streamInfo.urls);
+
+    const trimDuration = computeTrimDuration(streamInfo);
+    if (trimDuration) inputArgs.push('-t', trimDuration);
+
     const args = [
-        '-i', streamInfo.urls,
+        ...inputArgs,
         '-vn',
         ...(streamInfo.audioCopy ? ['-c:a', 'copy'] : ['-b:a', `${streamInfo.audioBitrate}k`]),
     ];
@@ -190,8 +240,15 @@ const convertAudio = async (streamInfo, res) => {
 }
 
 const convertGif = async (streamInfo, res) => {
+    const inputArgs = [];
+    if (streamInfo.trimStart) inputArgs.push('-ss', streamInfo.trimStart);
+    inputArgs.push('-i', streamInfo.urls);
+
+    const trimDuration = computeTrimDuration(streamInfo);
+    if (trimDuration) inputArgs.push('-t', trimDuration);
+
     const args = [
-        '-i', streamInfo.urls,
+        ...inputArgs,
 
         '-vf',
         'scale=-1:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
