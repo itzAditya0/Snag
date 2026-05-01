@@ -276,7 +276,13 @@ export default function({
     }
 
     if (defaultParams.filename && (action === "picker" || action === "audio")) {
-        defaultParams.filename += `.${audioFormat}`;
+        // strip any existing extension first. `downloadMode=audio` produces
+        // an extensionless filename via createFilename, so the strip is a
+        // no-op there. but `outputFormat=audio` on a video-shape source
+        // arrives here with `.mp4` already attached — appending audioFormat
+        // would produce `foo.mp4.mp3`. splitFilenameExtension handles both.
+        const [ name ] = splitFilenameExtension(defaultParams.filename);
+        defaultParams.filename = `${name}.${audioFormat}`;
     }
 
     // alwaysProxy is set to true in match.js if localProcessing is forced

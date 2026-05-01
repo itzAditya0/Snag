@@ -37,13 +37,33 @@ function post(msg: ProcessUpdate, transfer: Transferable[] = []) {
     ctx.postMessage(msg, transfer);
 }
 
+// per-stream memory ceiling for the in-RAM remux path. picked so a
+// typical 1080p YouTube DASH split fits comfortably (audio ~50 MB,
+// video ~300 MB for ~10 min) but a 4K DASH or hour-long stream trips
+// the limit before swap death. when this fires, the user can fall
+// back to localProcessing="disabled" in /settings to have the server
+// merge instead.
+const MAX_BYTES_PER_STREAM = 1 * 1024 * 1024 * 1024; // 1 GiB
+
 async function fetchInto(url: string, label: string, id: string): Promise<Uint8Array> {
     post({ id, kind: 'progress', phase: `fetching ${label}…` });
     const r = await fetch(url);
     if (!r.ok) {
         throw new Error(`fetch ${label} ${r.status}`);
     }
+    // upfront content-length check so we fail fast rather than after a
+    // full slow fetch + heap blow-up.
+    const cl = parseInt(r.headers.get('Content-Length') || '0', 10);
+    if (Number.isFinite(cl) && cl > MAX_BYTES_PER_STREAM) {
+        throw new Error(
+            `${label} too large for in-tab processing (${(cl / 1e9).toFixed(2)} GB > 1 GB cap). ` +
+                `set localProcessing=disabled in /settings to have the server merge instead.`
+        );
+    }
     const buf = await r.arrayBuffer();
+    if (buf.byteLength > MAX_BYTES_PER_STREAM) {
+        throw new Error(`${label} exceeded the per-stream cap after fetch (${buf.byteLength} bytes)`);
+    }
     return new Uint8Array(buf);
 }
 

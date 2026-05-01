@@ -13,7 +13,19 @@ import { env, genericUserAgent } from "../../config.js";
 const IMGUR_API = "https://api.imgur.com/3";
 const REMOVED = "removed.png";
 
-const probeExts = ["jpg", "jpeg", "png", "gif", "mp4", "webp"];
+// probe order matters: video extensions first so a video-having post
+// resolves to mp4 instead of imgur's synthesised still-image jpg, which
+// gets served at the same URL stem. each entry pins the expected
+// content-type kind so we don't mistake a fallback still for the real
+// content.
+const probeOrder = [
+    { ext: "mp4", kind: "video" },
+    { ext: "webp", kind: "image" }, // animated webp counts here
+    { ext: "gif", kind: "image" },
+    { ext: "jpg", kind: "image" },
+    { ext: "jpeg", kind: "image" },
+    { ext: "png", kind: "image" },
+];
 const videoExts = new Set(["mp4", "webm", "mov", "gifv"]);
 
 const apiHeaders = () => ({
@@ -55,7 +67,7 @@ const handleDirect = ({ id, ext }) => {
 };
 
 const probeId = async (id) => {
-    for (const ext of probeExts) {
+    for (const { ext, kind } of probeOrder) {
         const url = `https://i.imgur.com/${id}.${ext}`;
         try {
             const r = await fetch(url, {
@@ -63,13 +75,21 @@ const probeId = async (id) => {
                 redirect: "follow",
                 headers: { "user-agent": genericUserAgent },
             });
-            // accept only if final URL is still on i.imgur.com (not redirected
-            // to imgur.com/ for deleted videos) and isn't the removed.png
-            // placeholder.
+            // accept only if:
+            //   - final URL is still on the i.imgur.com CDN (not redirected
+            //     to imgur.com/ for deleted videos)
+            //   - not the removed.png placeholder
+            //   - content-type matches the kind we asked for. imgur happily
+            //     synthesises a still jpg at i.imgur.com/<id>.jpg even for
+            //     posts whose primary asset is a video, so checking for
+            //     "image/jpeg" is essential when probing image extensions.
             const finalUrl = r.url || url;
             const onCdn = finalUrl.startsWith("https://i.imgur.com/");
-            const contentType = r.headers.get("content-type") || "";
-            if (r.ok && onCdn && !finalUrl.includes(REMOVED) && !contentType.startsWith("text/html")) {
+            const contentType = (r.headers.get("content-type") || "").toLowerCase();
+            const kindMatches =
+                (kind === "video" && contentType.startsWith("video/")) ||
+                (kind === "image" && contentType.startsWith("image/"));
+            if (r.ok && onCdn && !finalUrl.includes(REMOVED) && kindMatches) {
                 return { url, ext };
             }
         } catch {

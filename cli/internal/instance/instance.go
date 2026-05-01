@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -120,10 +121,29 @@ func SaveConfig(c Config) (string, error) {
 	return path, nil
 }
 
+// validateSourceURL rejects schemes other than http/https. snag instance
+// lists are always served over the network — no `file://`, `data:`, or
+// other local-only schemes that could surprise the user.
+func validateSourceURL(raw string) error {
+	parsed, err := neturl.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	switch parsed.Scheme {
+	case "http", "https":
+		return nil
+	default:
+		return fmt.Errorf("unsupported scheme %q (only http/https allowed)", parsed.Scheme)
+	}
+}
+
 // FetchList pulls an instance list from a single source URL. Accepts
 // both `[<Instance>]` and `{instances: [<Instance>]}` shapes; only the
 // `url` field is required, everything else is best-effort.
 func FetchList(ctx context.Context, sourceURL string, timeout time.Duration) ([]Instance, error) {
+	if err := validateSourceURL(sourceURL); err != nil {
+		return nil, err
+	}
 	if timeout <= 0 {
 		timeout = 8 * time.Second
 	}

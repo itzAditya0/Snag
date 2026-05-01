@@ -188,11 +188,23 @@ func resolveOutputPath(outputPath, apiFilename, httpFilename string) (string, er
 	return outputPath, nil
 }
 
-// sanitiseFilename strips path separators so a server-suggested
-// filename can never escape the chosen directory.
+// sanitiseFilename strips path separators, NUL/control chars, and the
+// Windows-reserved colon so a server-suggested filename can't escape the
+// chosen directory or land on a reserved name.
 func sanitiseFilename(name string) string {
+	// drop NUL + low-control bytes (\x00..\x1f) so an attacker can't
+	// truncate the filename via NUL on POSIX or land on a reserved
+	// name on Windows.
+	name = strings.Map(func(r rune) rune {
+		if r < 0x20 {
+			return -1
+		}
+		return r
+	}, name)
 	name = strings.ReplaceAll(name, "/", "_")
 	name = strings.ReplaceAll(name, "\\", "_")
+	// : is reserved on windows + macOS HFS+; strip to avoid surprises.
+	name = strings.ReplaceAll(name, ":", "_")
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "snag-download"
