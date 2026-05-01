@@ -1,8 +1,12 @@
 <script lang="ts">
     import '../app.css';
     import { projectName, projectTagline } from '$lib/env';
+    import { installPersistence } from '$stores/settings.svelte';
 
     let { children } = $props();
+
+    // persist settings to localStorage whenever they change
+    installPersistence();
 </script>
 
 <div class="app">

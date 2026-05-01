@@ -1,9 +1,9 @@
 <script lang="ts">
     import { submit, SnagAPIError } from '$lib/api/client';
-    import type { SnagResponse, DownloadMode } from '$types/api';
+    import type { SnagResponse } from '$types/api';
+    import { settings, buildRequest } from '$stores/settings.svelte';
 
     let url = $state('');
-    let downloadMode: DownloadMode = $state('auto');
     let busy = $state(false);
     let response: SnagResponse | null = $state(null);
     let errorMsg = $state('');
@@ -17,7 +17,7 @@
         errorMsg = '';
 
         try {
-            response = await submit({ url: url.trim(), downloadMode });
+            response = await submit(buildRequest(url.trim()));
             if (response.status === 'error') {
                 errorMsg = response.error.code;
             }
@@ -55,19 +55,36 @@
         />
 
         <div class="mode-row">
-            <label class:active={downloadMode === 'auto'}>
-                <input type="radio" bind:group={downloadMode} value="auto" disabled={busy} />
+            <label class:active={settings.downloadMode === 'auto'}>
+                <input
+                    type="radio"
+                    bind:group={settings.downloadMode}
+                    value="auto"
+                    disabled={busy}
+                />
                 auto
             </label>
-            <label class:active={downloadMode === 'audio'}>
-                <input type="radio" bind:group={downloadMode} value="audio" disabled={busy} />
+            <label class:active={settings.downloadMode === 'audio'}>
+                <input
+                    type="radio"
+                    bind:group={settings.downloadMode}
+                    value="audio"
+                    disabled={busy}
+                />
                 audio only
             </label>
-            <label class:active={downloadMode === 'mute'}>
-                <input type="radio" bind:group={downloadMode} value="mute" disabled={busy} />
+            <label class:active={settings.downloadMode === 'mute'}>
+                <input
+                    type="radio"
+                    bind:group={settings.downloadMode}
+                    value="mute"
+                    disabled={busy}
+                />
                 video, no audio
             </label>
         </div>
+
+        <a class="settings-link" href="/settings">advanced settings &rarr;</a>
 
         <button class="submit" type="submit" disabled={busy}>
             {busy ? 'fetching…' : 'snag it'}
@@ -180,6 +197,18 @@
         position: absolute;
         opacity: 0;
         pointer-events: none;
+    }
+
+    .settings-link {
+        align-self: flex-start;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        text-decoration: none;
+    }
+
+    .settings-link:hover {
+        color: var(--accent);
+        text-decoration: underline;
     }
 
     .submit {
