@@ -59,7 +59,14 @@ export const defaults: Settings = {
     disableMetadata: false,
     allowH265: false,
     convertGif: true,
-    alwaysProxy: false,
+    // tunnel by default: many CDNs (twitter/twimg, instagram, some imgur)
+    // gate hotlinking by referer/origin or get blocked by privacy-focused
+    // browsers. tunneling routes the file through the local snag api
+    // process — costs a few MB of self-hosted bandwidth in exchange for
+    // reliability across every browser and network. flip to false in
+    // settings if you'd rather save bandwidth and accept the occasional
+    // "access denied" on direct-redirect CDNs.
+    alwaysProxy: true,
     youtubeHLS: false,
     youtubeBetterAudio: false,
     videoCodec: 'auto',
