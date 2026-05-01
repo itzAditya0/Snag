@@ -15,50 +15,38 @@
     }
 
     function suggestedName(item: PickerItem, index: number): string {
-        return `snag_${index + 1}.${ext(item)}`;
-    }
-
-    function emojiFor(type: PickerItem['type']): string {
-        if (type === 'photo') return '\u{1F5BC}\u{FE0F}';
-        if (type === 'gif') return '\u{1F4F8}';
-        return '\u{1F3AC}';
+        return `snag_${String(index + 1).padStart(2, '0')}.${ext(item)}`;
     }
 </script>
 
 <div class="picker">
-    <p class="summary">
-        this URL contains <strong>{items.length}</strong>
-        {items.length === 1 ? 'item' : 'items'}. pick what you want.
+    <p class="result-label tracked">
+        {items.length} item{items.length === 1 ? '' : 's'}
+        {#if response.audio} &middot; soundtrack available{/if}
     </p>
 
     {#if response.audio}
-        <div class="audio-row">
-            <span class="audio-label">soundtrack:</span>
-            <a class="dl" href={response.audio} download={response.audioFilename ?? 'audio'}>
-                download audio
-            </a>
-        </div>
+        <a class="audio-row" href={response.audio} download={response.audioFilename ?? 'audio'}>
+            <span class="audio-icon" aria-hidden="true">&#9836;</span>
+            <span class="audio-label">download soundtrack</span>
+            <span class="audio-arrow" aria-hidden="true">&rarr;</span>
+        </a>
     {/if}
 
     <div class="grid">
         {#each items as item, i}
-            <div class="item">
-                {#if item.thumb}
-                    <a class="thumb" href={item.url} download={suggestedName(item, i)}>
-                        <img src={item.thumb} alt={`item ${i + 1}`} loading="lazy" />
-                    </a>
-                {:else}
-                    <a class="thumb placeholder" href={item.url} download={suggestedName(item, i)}>
-                        <span class="emoji">{emojiFor(item.type)}</span>
-                    </a>
-                {/if}
-                <div class="meta">
-                    <span class="type">{item.type}</span>
-                    <a class="dl small" href={item.url} download={suggestedName(item, i)}>
-                        download
-                    </a>
+            <a class="item" href={item.url} download={suggestedName(item, i)}>
+                <div class="thumb" class:placeholder={!item.thumb}>
+                    {#if item.thumb}
+                        <img src={item.thumb} alt="" loading="lazy" />
+                    {/if}
+                    <span class="index mono">{String(i + 1).padStart(2, '0')}</span>
                 </div>
-            </div>
+                <div class="meta">
+                    <span class="type mono">{item.type}</span>
+                    <span class="dl-arrow" aria-hidden="true">&darr;</span>
+                </div>
+            </a>
         {/each}
     </div>
 </div>
@@ -67,54 +55,82 @@
     .picker {
         display: flex;
         flex-direction: column;
-        gap: 1rem;
+        gap: 1.25rem;
     }
 
-    .summary {
+    .result-label {
         margin: 0;
-        color: var(--text);
-    }
-
-    .summary strong {
-        color: var(--accent);
+        color: var(--text-muted);
     }
 
     .audio-row {
         display: flex;
-        gap: 0.75rem;
         align-items: center;
-        padding: 0.75rem 1rem;
-        background: var(--surface-elevated);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
+        gap: 0.75rem;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid var(--text);
+        color: var(--text);
+        transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+    }
+
+    .audio-row:hover {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+    }
+
+    .audio-icon {
+        font-size: 1rem;
+        color: var(--text-muted);
+    }
+
+    .audio-row:hover .audio-icon {
+        color: var(--accent);
     }
 
     .audio-label {
-        font-size: 0.9rem;
+        flex: 1;
+        font-size: 0.95rem;
+    }
+
+    .audio-arrow {
         color: var(--text-muted);
+        transition: color 0.15s var(--ease), transform 0.15s var(--ease);
+    }
+
+    .audio-row:hover .audio-arrow {
+        color: var(--accent);
+        transform: translateX(2px);
     }
 
     .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 0.75rem;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 0.5rem;
     }
 
     .item {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        overflow: hidden;
+        gap: 0;
+        color: var(--text);
+        transition: opacity 0.15s var(--ease);
+    }
+
+    .item:hover {
+        opacity: 1;
     }
 
     .thumb {
-        display: block;
+        position: relative;
         aspect-ratio: 1 / 1;
         overflow: hidden;
-        background: var(--surface-elevated);
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        transition: border-color 0.15s var(--ease);
+    }
+
+    .item:hover .thumb {
+        border-color: var(--text);
     }
 
     .thumb img {
@@ -122,6 +138,11 @@
         height: 100%;
         object-fit: cover;
         display: block;
+        transition: transform 0.18s var(--ease);
+    }
+
+    .item:hover .thumb img {
+        transform: scale(1.02);
     }
 
     .thumb.placeholder {
@@ -130,43 +151,42 @@
         justify-content: center;
     }
 
-    .thumb .emoji {
-        font-size: 2rem;
+    .index {
+        position: absolute;
+        top: 0.4rem;
+        left: 0.4rem;
+        font-size: 0.7rem;
+        letter-spacing: 0.06em;
+        color: var(--text);
+        background: rgba(10, 10, 10, 0.7);
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.15em;
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
     }
 
     .meta {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: 0 0.6rem 0.6rem;
-        gap: 0.5rem;
+        justify-content: space-between;
+        padding: 0.5rem 0.1rem;
     }
 
     .type {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
+        letter-spacing: 0.06em;
         color: var(--text-muted);
         text-transform: uppercase;
-        letter-spacing: 0.06em;
     }
 
-    .dl {
-        display: inline-block;
-        padding: 0.4rem 0.7rem;
-        background: var(--accent);
-        color: var(--accent-text);
-        border-radius: var(--radius-sm);
+    .dl-arrow {
+        color: var(--text-muted);
         font-size: 0.85rem;
-        font-weight: 500;
-        text-decoration: none;
+        transition: color 0.15s var(--ease), transform 0.15s var(--ease);
     }
 
-    .dl.small {
-        padding: 0.25rem 0.55rem;
-        font-size: 0.78rem;
-    }
-
-    .dl:hover {
-        background: var(--accent-hover);
-        text-decoration: none;
+    .item:hover .dl-arrow {
+        color: var(--accent);
+        transform: translateY(2px);
     }
 </style>

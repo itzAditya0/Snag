@@ -1,112 +1,197 @@
 <div class="page">
-    <h1>license</h1>
+    <header class="page-head">
+        <p class="crumb tracked"><a href="/about">about</a> &middot; license</p>
+        <h1 class="title">License.</h1>
+        <p class="lede">
+            unless a subdirectory says otherwise, snag is licensed under the
+            <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</a>.
+        </p>
+    </header>
 
-    <p>
-        unless a subdirectory specifies otherwise, snag is licensed under the
-        <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</a>.
-    </p>
+    <section class="group">
+        <h2 class="group-head tracked">what AGPL-3.0 means</h2>
+        <ul class="bullets">
+            <li>you can use, study, modify, and redistribute snag freely.</li>
+            <li>
+                if you modify snag and run it as a service for others, you must publish your
+                modifications under the same license.
+            </li>
+            <li>derivative works stay AGPL-3.0.</li>
+        </ul>
+    </section>
 
-    <h2>what AGPL-3.0 means in practice</h2>
+    <section class="group">
+        <h2 class="group-head tracked">module licenses</h2>
+        <div class="row">
+            <span class="row-label mono">api/</span>
+            <span class="row-value mono">AGPL-3.0 — inherited from cobalt</span>
+        </div>
+        <div class="row">
+            <span class="row-label mono">web/</span>
+            <span class="row-value mono">AGPL-3.0 — independent snag implementation</span>
+        </div>
+        <div class="row">
+            <span class="row-label mono">packages/api-client/</span>
+            <span class="row-value mono">MIT — inherited from cobalt</span>
+        </div>
+    </section>
 
-    <ul>
-        <li>you can use, study, modify, and redistribute snag freely.</li>
-        <li>
-            if you modify snag and run it as a network service for others, you must publish your
-            modifications under the same license.
-        </li>
-        <li>derivative works must stay AGPL-3.0.</li>
-    </ul>
-
-    <h2>module licenses</h2>
-
-    <dl class="modules">
-        <dt><a href="https://github.com/REPLACE_ME/snag/blob/main/api/LICENSE">api/</a></dt>
-        <dd>AGPL-3.0 — inherited from cobalt.</dd>
-
-        <dt><a href="https://github.com/REPLACE_ME/snag/blob/main/web/LICENSE">web/</a></dt>
-        <dd>AGPL-3.0 — independent snag implementation.</dd>
-
-        <dt>
-            <a href="https://github.com/REPLACE_ME/snag/blob/main/packages/api-client/LICENSE">
-                packages/api-client/
-            </a>
-        </dt>
-        <dd>MIT — inherited from cobalt.</dd>
-    </dl>
-
-    <h2>credit</h2>
-
-    <p>
-        snag is a fork of <a href="https://github.com/imputnet/cobalt">cobalt by imput</a>. the
-        cobalt api server, shared packages, and architectural patterns are inherited under AGPL-3.0.
-        cobalt's web frontend is licensed under CC-BY-NC-SA 4.0 and is <em>not</em> redistributed
-        in this repository — the snag web frontend is an independent reimplementation under
-        AGPL-3.0.
-    </p>
-
-    <p>
-        see <a
-            href="https://github.com/REPLACE_ME/snag/blob/main/NOTICE"
-        >NOTICE</a
-        > for full attribution.
-    </p>
-
-    <p>
-        <a href="/about">&larr; back to about</a>
-    </p>
+    <section class="group">
+        <h2 class="group-head tracked">credit</h2>
+        <p class="prose">
+            snag is a fork of
+            <a href="https://github.com/imputnet/cobalt">cobalt by imput</a>. the cobalt api
+            server, shared packages, and architectural patterns are inherited under AGPL-3.0.
+        </p>
+        <p class="prose">
+            cobalt&rsquo;s web frontend is licensed under CC-BY-NC-SA 4.0 and is
+            <span class="italic">not</span> redistributed in this repository — the snag web
+            frontend is an independent reimplementation under AGPL-3.0.
+        </p>
+    </section>
 </div>
 
 <style>
     .page {
         display: flex;
         flex-direction: column;
+        gap: 3rem;
+        padding: 1rem 0 4rem;
+    }
+
+    .page-head {
+        display: flex;
+        flex-direction: column;
         gap: 1rem;
+        max-width: 42rem;
     }
 
-    h1 {
+    .crumb {
         margin: 0;
-        font-size: 2rem;
-        font-weight: 700;
-        letter-spacing: -0.03em;
-    }
-
-    h2 {
-        margin: 1rem 0 0.5rem 0;
-        font-size: 1rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
         color: var(--text-muted);
+        font-size: 0.78rem;
     }
 
-    p,
-    ul {
+    .crumb a {
+        color: var(--text-muted);
+        border-bottom: 1px solid transparent;
+        transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+    }
+
+    .crumb a:hover {
+        color: var(--text);
+        border-bottom-color: var(--text);
+    }
+
+    .title {
         margin: 0;
+        font-family: var(--font-sans);
+        font-weight: 500;
+        font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+        line-height: 1.05;
+        letter-spacing: -0.025em;
+        color: var(--text);
     }
 
-    ul {
+    .lede {
+        margin: 0;
+        font-size: 1rem;
+        line-height: 1.55;
+        color: var(--text-soft);
+        max-width: 36rem;
+    }
+
+    .lede a {
+        color: var(--text);
+        border-bottom: 1px solid var(--line-strong);
+        padding-bottom: 0.05rem;
+    }
+
+    .lede a:hover {
+        border-bottom-color: var(--accent);
+        color: var(--accent);
+    }
+
+    .group {
+        display: flex;
+        flex-direction: column;
+        max-width: 42rem;
+        gap: 0.75rem;
+    }
+
+    .group-head {
+        margin: 0 0 0.5rem;
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        padding-bottom: 0.65rem;
+        border-bottom: 1px solid var(--line-strong);
+    }
+
+    .bullets {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        color: var(--text-soft);
+        font-size: 0.95rem;
+        line-height: 1.55;
+    }
+
+    .bullets li {
+        position: relative;
         padding-left: 1.25rem;
     }
 
-    .modules {
-        display: grid;
-        grid-template-columns: max-content 1fr;
-        gap: 0.5rem 1rem;
-        padding: 1rem 1.25rem;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        margin: 0;
+    .bullets li::before {
+        content: '·';
+        position: absolute;
+        left: 0;
+        color: var(--text-faint);
     }
 
-    .modules dt {
-        font-family: var(--font-mono);
-        font-size: 0.9rem;
+    .row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1.5rem;
+        padding: 0.7rem 0;
+        border-bottom: 1px solid var(--line);
     }
 
-    .modules dd {
+    .row-label {
+        color: var(--text);
+        font-size: 0.85rem;
+    }
+
+    .row-value {
+        color: var(--text-soft);
+        font-size: 0.78rem;
+        text-align: right;
+    }
+
+    .prose {
         margin: 0;
-        font-size: 0.9rem;
-        color: var(--text-muted);
+        font-size: 0.95rem;
+        line-height: 1.65;
+        color: var(--text-soft);
+    }
+
+    .prose a {
+        color: var(--text);
+        border-bottom: 1px solid var(--line-strong);
+        padding-bottom: 0.05rem;
+        transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+    }
+
+    .prose a:hover {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+    }
+
+    .italic {
+        font-style: italic;
+        color: var(--text);
     }
 </style>
