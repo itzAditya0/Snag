@@ -8,6 +8,12 @@
     let busy = $state(false);
     let response: SnagResponse | null = $state(null);
     let errorMsg = $state('');
+    let advancedOpen = $state(false);
+    let trimStart = $state('');
+    let trimEnd = $state('');
+
+    const trimRe = /^(\d+(\.\d{1,3})?|(\d{1,2}:){1,2}\d{1,2}(\.\d{1,3})?)$/;
+    const trimValid = (s: string) => s.length === 0 || trimRe.test(s);
 
     const modes: { value: DownloadMode; label: string }[] = [
         { value: 'auto', label: 'auto' },
@@ -18,13 +24,20 @@
     async function onSubmit(e: SubmitEvent) {
         e.preventDefault();
         if (!url.trim() || busy) return;
+        if (!trimValid(trimStart) || !trimValid(trimEnd)) {
+            errorMsg = 'invalid trim format. use ss, mm:ss, or hh:mm:ss';
+            return;
+        }
 
         busy = true;
         response = null;
         errorMsg = '';
 
         try {
-            response = await submit(buildRequest(url.trim()));
+            const req = buildRequest(url.trim());
+            if (trimStart.trim()) req.trimStart = trimStart.trim();
+            if (trimEnd.trim()) req.trimEnd = trimEnd.trim();
+            response = await submit(req);
             if (response.status === 'error') {
                 errorMsg = response.error.code;
             }
@@ -120,6 +133,56 @@
                             <span class="dot" aria-hidden="true">·</span>
                         {/if}
                     {/each}
+                </div>
+
+                <div class="advanced">
+                    <button
+                        type="button"
+                        class="advanced-toggle tracked"
+                        onclick={() => (advancedOpen = !advancedOpen)}
+                        aria-expanded={advancedOpen}
+                    >
+                        {advancedOpen ? 'hide' : 'show'} advanced
+                        <span class="adv-arrow" aria-hidden="true">{advancedOpen ? '−' : '+'}</span>
+                    </button>
+
+                    {#if advancedOpen}
+                        <div class="advanced-panel">
+                            <div class="trim-row">
+                                <label class="trim-field">
+                                    <span class="trim-label tracked">trim start</span>
+                                    <input
+                                        type="text"
+                                        class="trim-input mono"
+                                        bind:value={trimStart}
+                                        placeholder="00:00:10"
+                                        autocomplete="off"
+                                        spellcheck="false"
+                                        maxlength="16"
+                                        disabled={busy}
+                                    />
+                                </label>
+                                <label class="trim-field">
+                                    <span class="trim-label tracked">trim end</span>
+                                    <input
+                                        type="text"
+                                        class="trim-input mono"
+                                        bind:value={trimEnd}
+                                        placeholder="00:00:30"
+                                        autocomplete="off"
+                                        spellcheck="false"
+                                        maxlength="16"
+                                        disabled={busy}
+                                    />
+                                </label>
+                            </div>
+                            <p class="adv-note">
+                                use <span class="mono">ss</span>, <span class="mono">mm:ss</span>, or
+                                <span class="mono">hh:mm:ss</span>. for codec/container/resize, see
+                                <a href="/settings">settings</a>.
+                            </p>
+                        </div>
+                    {/if}
                 </div>
 
                 {#if busy}
@@ -302,6 +365,95 @@
         color: var(--text-muted);
         font-size: 0.8rem;
         letter-spacing: 0.04em;
+    }
+
+    .advanced {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    .advanced-toggle {
+        align-self: flex-start;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: var(--text-muted);
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        transition: color 0.15s var(--ease);
+    }
+
+    .advanced-toggle:hover {
+        color: var(--text);
+    }
+
+    .adv-arrow {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        line-height: 1;
+        opacity: 0.7;
+    }
+
+    .advanced-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        padding-top: 0.4rem;
+    }
+
+    .trim-row {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .trim-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        flex: 1;
+    }
+
+    .trim-label {
+        color: var(--text-muted);
+    }
+
+    .trim-input {
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid var(--line-strong);
+        color: var(--text);
+        font-size: 0.9rem;
+        padding: 0.3rem 0;
+        transition: border-color 0.15s var(--ease);
+    }
+
+    .trim-input:focus {
+        outline: none;
+        border-bottom-color: var(--text);
+    }
+
+    .trim-input:disabled {
+        opacity: 0.5;
+    }
+
+    .adv-note {
+        margin: 0.2rem 0 0;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+
+    .adv-note .mono {
+        color: var(--text-soft);
+    }
+
+    .adv-note a {
+        color: var(--accent);
+        border-bottom: 1px solid var(--accent-soft);
     }
 
     /* ---------- result + error ---------- */

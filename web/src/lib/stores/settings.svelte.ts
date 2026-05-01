@@ -31,6 +31,12 @@ export interface Settings {
     alwaysProxy: boolean;
     youtubeHLS: boolean;
     youtubeBetterAudio: boolean;
+
+    // F2 Basic — output format conversion defaults.
+    videoCodec: 'auto' | 'h264' | 'h265' | 'av1' | 'vp9';
+    videoContainer: 'auto' | 'mp4' | 'mkv' | 'webm';
+    targetHeight: 'source' | '2160' | '1440' | '1080' | '720' | '480' | '360';
+    burnSubtitles: boolean;
 }
 
 export const defaults: Settings = {
@@ -49,7 +55,11 @@ export const defaults: Settings = {
     convertGif: true,
     alwaysProxy: false,
     youtubeHLS: false,
-    youtubeBetterAudio: false
+    youtubeBetterAudio: false,
+    videoCodec: 'auto',
+    videoContainer: 'auto',
+    targetHeight: 'source',
+    burnSubtitles: false
 };
 
 const STORAGE_KEY = 'snag.settings.v1';
@@ -100,7 +110,11 @@ export function installPersistence() {
             convertGif: settings.convertGif,
             alwaysProxy: settings.alwaysProxy,
             youtubeHLS: settings.youtubeHLS,
-            youtubeBetterAudio: settings.youtubeBetterAudio
+            youtubeBetterAudio: settings.youtubeBetterAudio,
+            videoCodec: settings.videoCodec,
+            videoContainer: settings.videoContainer,
+            targetHeight: settings.targetHeight,
+            burnSubtitles: settings.burnSubtitles
         };
         save(snapshot);
     });

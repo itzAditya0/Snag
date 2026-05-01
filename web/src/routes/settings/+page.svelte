@@ -79,6 +79,49 @@
     </section>
 
     <section class="group">
+        <h2 class="group-head tracked">output format</h2>
+
+        <div class="row">
+            <span class="row-label">re-encode codec</span>
+            <select class="row-select mono" bind:value={settings.videoCodec}>
+                <option value="auto">auto &mdash; no re-encode</option>
+                <option value="h264">h.264 (libx264)</option>
+                <option value="h265">h.265 (libx265)</option>
+                <option value="av1">av1 (libsvtav1)</option>
+                <option value="vp9">vp9 (libvpx-vp9)</option>
+            </select>
+        </div>
+
+        <div class="row">
+            <span class="row-label">output container</span>
+            <select class="row-select mono" bind:value={settings.videoContainer}>
+                <option value="auto">auto</option>
+                <option value="mp4">mp4</option>
+                <option value="mkv">mkv</option>
+                <option value="webm">webm</option>
+            </select>
+        </div>
+
+        <div class="row">
+            <span class="row-label">resize to</span>
+            <select class="row-select mono" bind:value={settings.targetHeight}>
+                <option value="source">source resolution</option>
+                <option value="2160">2160p (4k)</option>
+                <option value="1440">1440p</option>
+                <option value="1080">1080p</option>
+                <option value="720">720p</option>
+                <option value="480">480p</option>
+                <option value="360">360p</option>
+            </select>
+        </div>
+
+        <p class="note">
+            re-encoding (codec / resize) is much slower than copy. only set these
+            when you need the conversion.
+        </p>
+    </section>
+
+    <section class="group">
         <h2 class="group-head tracked">audio</h2>
 
         <div class="row">
@@ -153,6 +196,11 @@
                 maxlength="8"
             />
         </div>
+
+        <label class="row check">
+            <input type="checkbox" bind:checked={settings.burnSubtitles} />
+            <span class="row-label">burn subtitles into the video (forces re-encode)</span>
+        </label>
     </section>
 
     <section class="group">
