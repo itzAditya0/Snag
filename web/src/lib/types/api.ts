@@ -103,3 +103,14 @@ export type SnagResponse =
     | LocalProcessingResponse
     | PickerResponse
     | ErrorResponse;
+
+// F4 — batch response. each entry is the same shape POST / would have
+// returned individually.
+export interface BatchResponse {
+    status: 'batch';
+    results: SnagResponse[];
+}
+
+export interface BatchRequest extends Omit<SnagRequest, 'url'> {
+    urls: string[];
+}

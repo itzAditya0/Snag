@@ -122,7 +122,11 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
         ...corsConfig,
     }));
 
-    app.post('/', (req, res, next) => {
+    // F4 — POST /batch shares the same auth / rate-limit / parsing chain
+    // as POST /. apply each middleware to both paths.
+    const apiPaths = ['/', '/batch'];
+
+    app.post(apiPaths, (req, res, next) => {
         if (!acceptRegex.test(req.header('Accept'))) {
             return fail(res, "error.api.header.accept");
         }
@@ -132,7 +136,7 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
         next();
     });
 
-    app.post('/', (req, res, next) => {
+    app.post(apiPaths, (req, res, next) => {
         if (!env.apiKeyURL) {
             return next();
         }
@@ -160,7 +164,7 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
         return next();
     });
 
-    app.post('/', (req, res, next) => {
+    app.post(apiPaths, (req, res, next) => {
         if (!env.sessionEnabled || req.rateLimitKey) {
             return next();
         }
@@ -192,7 +196,11 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
         next();
     });
 
-    app.post('/', apiLimiter);
+    app.post(apiPaths, apiLimiter);
+
+    // /batch payloads can carry up to 50 URLs, so they need a larger body
+    // limit than the strict 1 KB used for single-URL POST /.
+    app.use('/batch', express.json({ limit: 16 * 1024 }));
     app.use('/', express.json({ limit: 1024 }));
 
     app.use('/', (err, _, res, next) => {
@@ -233,16 +241,16 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
         }
     });
 
-    app.post('/', async (req, res) => {
-        const request = req.body;
-
-        if (!request.url) {
-            return fail(res, "error.api.link.missing");
+    // process a single request body. returns the {status, body} shape used
+    // by createResponse — never throws. shared by POST / and POST /batch.
+    const processOne = async (request, req) => {
+        if (!request || !request.url) {
+            return createResponse("error", { code: "error.api.link.missing" });
         }
 
         const { success, data: normalizedRequest } = await normalizeRequest(request);
         if (!success) {
-            return fail(res, "error.api.invalid_body");
+            return createResponse("error", { code: "error.api.invalid_body" });
         }
 
         const parsed = extract(
@@ -251,29 +259,65 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
         );
 
         if (!parsed) {
-            return fail(res, "error.api.link.invalid");
+            return createResponse("error", { code: "error.api.link.invalid" });
         }
 
         if ("error" in parsed) {
-            let context;
-            if (parsed?.context) {
-                context = parsed.context;
-            }
-            return fail(res, `error.api.${parsed.error}`, context);
+            return createResponse("error", {
+                code: `error.api.${parsed.error}`,
+                context: parsed?.context,
+            });
         }
 
         try {
-            const result = await match({
+            return await match({
                 host: parsed.host,
                 patternMatch: parsed.patternMatch,
                 params: normalizedRequest,
                 authType: req.authType ?? "none",
             });
-
-            res.status(result.status).json(result.body);
         } catch {
-            fail(res, "error.api.generic");
+            return createResponse("error", { code: "error.api.generic" });
         }
+    };
+
+    app.post('/', async (req, res) => {
+        const result = await processOne(req.body, req);
+        res.status(result.status).json(result.body);
+    });
+
+    // F4 — batch endpoint. submits N URLs sharing the same options, returns
+    // an array of standard responses. processed with bounded concurrency to
+    // avoid hammering the upstream services from a single batch.
+    const BATCH_LIMIT = 50;
+    const BATCH_CONCURRENCY = 4;
+
+    app.post('/batch', async (req, res) => {
+        const body = req.body || {};
+        const urls = body.urls;
+        if (!Array.isArray(urls) || urls.length === 0 || urls.length > BATCH_LIMIT) {
+            return fail(res, "error.api.batch.invalid_size");
+        }
+        if (urls.some(u => typeof u !== 'string' || !u.length)) {
+            return fail(res, "error.api.batch.invalid_url");
+        }
+
+        // strip "urls" from shared options so each per-URL request gets a
+        // single string url field (which apiSchema expects).
+        const { urls: _, ...sharedOpts } = body;
+
+        const results = new Array(urls.length);
+        for (let i = 0; i < urls.length; i += BATCH_CONCURRENCY) {
+            const slice = urls.slice(i, i + BATCH_CONCURRENCY);
+            const sliceResults = await Promise.all(
+                slice.map((url) => processOne({ ...sharedOpts, url }, req))
+            );
+            for (let j = 0; j < sliceResults.length; j++) {
+                results[i + j] = sliceResults[j].body;
+            }
+        }
+
+        res.json({ status: "batch", results });
     });
 
     app.use('/tunnel', cors({
