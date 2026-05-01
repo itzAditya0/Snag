@@ -167,20 +167,34 @@ func (c *Client) Info() (*InstanceInfo, error) {
 	return &out, nil
 }
 
-// Download fetches a file URL (typically a tunnel link) into w. It
-// surfaces the negotiated filename via Content-Disposition when the
-// caller doesn't already have one.
+// Download is a streaming response. The Reader yields the bytes the
+// caller needs to write; for resumed downloads (IsPartial true) the
+// reader yields only the bytes after StartedAt.
 type Download struct {
 	HTTPStatus int
 	Filename   string
-	Size       int64
-	Reader     io.ReadCloser
+	// TotalSize is the full content length when known (in bytes).
+	// For resumed downloads, it includes the bytes already on disk.
+	TotalSize int64
+	// StartedAt is the offset (in bytes) the response begins at on the
+	// source timeline. Always 0 for full responses; >=0 for 206.
+	StartedAt int64
+	// IsPartial is true when the server honoured the Range header
+	// (HTTP 206). False on 200, even if a Range was requested — the
+	// caller must truncate any existing .part in that case.
+	IsPartial bool
+	Reader    io.ReadCloser
 }
 
 // Fetch performs GET on a download URL (tunnel or external) and
 // returns a streaming Download. Closing Download.Reader is the
 // caller's responsibility.
-func (c *Client) Fetch(downloadURL string) (*Download, error) {
+//
+// startAt > 0 sends a Range header so the server can serve a partial
+// response. Resumability requires the server to support byte-range
+// requests; on 200 (no Range support), Download.IsPartial is false
+// and the caller must restart from 0.
+func (c *Client) Fetch(downloadURL string, startAt int64) (*Download, error) {
 	if _, err := url.Parse(downloadURL); err != nil {
 		return nil, fmt.Errorf("invalid download URL: %w", err)
 	}
@@ -189,29 +203,60 @@ func (c *Client) Fetch(downloadURL string) (*Download, error) {
 		return nil, err
 	}
 	req.Header.Set("user-agent", c.UserAgent)
-	// allow streaming a long-running tunnel without the 60s default
-	httpClient := &http.Client{
-		Transport: c.HTTPClient.Transport,
+	if startAt > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", startAt))
 	}
+	// streaming tunnels can outlive the default 60s timeout
+	httpClient := &http.Client{Transport: c.HTTPClient.Transport}
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		resp.Body.Close()
 		return nil, fmt.Errorf("download returned %d", resp.StatusCode)
 	}
+
 	d := &Download{
 		HTTPStatus: resp.StatusCode,
 		Reader:     resp.Body,
+		IsPartial:  resp.StatusCode == http.StatusPartialContent,
 	}
+
+	// Content-Length is the bytes in the body; for 206 it's the bytes
+	// remaining, not the full file size.
+	var clen int64
 	if cl := resp.Header.Get("Content-Length"); cl != "" {
-		// best-effort; ignore errors
-		fmt.Sscanf(cl, "%d", &d.Size)
+		fmt.Sscanf(cl, "%d", &clen)
 	}
-	if est := resp.Header.Get("Estimated-Content-Length"); est != "" && d.Size == 0 {
-		fmt.Sscanf(est, "%d", &d.Size)
+
+	if d.IsPartial {
+		if cr := resp.Header.Get("Content-Range"); cr != "" {
+			// "bytes 1024-2047/2048" or "bytes 1024-2047/*"
+			var start, end, total int64
+			n, _ := fmt.Sscanf(cr, "bytes %d-%d/%d", &start, &end, &total)
+			if n >= 2 {
+				d.StartedAt = start
+				if n == 3 {
+					d.TotalSize = total
+				}
+			}
+		}
 	}
+
+	if d.TotalSize == 0 {
+		d.TotalSize = d.StartedAt + clen
+	}
+	if d.TotalSize == 0 {
+		// snag tunnels expose an estimated full size for pipelines
+		// where the real Content-Length isn't known up front.
+		if est := resp.Header.Get("Estimated-Content-Length"); est != "" {
+			var est64 int64
+			fmt.Sscanf(est, "%d", &est64)
+			d.TotalSize = est64
+		}
+	}
+
 	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
 		d.Filename = parseFilename(cd)
 	}

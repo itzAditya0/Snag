@@ -48,25 +48,52 @@ func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool) 
 		return "", errors.New("response missing url")
 	}
 
-	dl, err := c.Fetch(url)
+	// resolve final path first so we can check for an existing .part to
+	// resume from before issuing the GET.
+	finalPath, err := resolveOutputPath(outputPath, filename, "")
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0o755); err != nil {
+		return "", err
+	}
+	tmp := finalPath + ".part"
+
+	var startAt int64
+	if info, err := os.Stat(tmp); err == nil && info.Size() > 0 {
+		startAt = info.Size()
+	}
+
+	dl, err := c.Fetch(url, startAt)
 	if err != nil {
 		return "", err
 	}
 	defer dl.Reader.Close()
 
-	finalPath, err := resolveOutputPath(outputPath, filename, dl.Filename)
-	if err != nil {
-		return "", err
+	// if the API negotiated a different filename, refresh finalPath / tmp
+	// only when the caller didn't pin a specific output file. avoids the
+	// rare case where Content-Disposition yields a name we hadn't seen.
+	if dl.Filename != "" && filename == "" && outputPath == "" {
+		alt, err := resolveOutputPath(outputPath, dl.Filename, dl.Filename)
+		if err == nil {
+			finalPath = alt
+			tmp = finalPath + ".part"
+		}
 	}
 
-	if err := os.MkdirAll(filepath.Dir(finalPath), 0o755); err != nil {
-		return "", err
+	// If we asked for a Range but the server gave us 200 (full content)
+	// — or if the existing .part offset doesn't match the negotiated
+	// StartedAt — restart from zero.
+	resuming := dl.IsPartial && startAt > 0 && dl.StartedAt == startAt
+	flag := os.O_CREATE | os.O_WRONLY
+	if resuming {
+		flag |= os.O_APPEND
+	} else {
+		flag |= os.O_TRUNC
 	}
-
-	tmp := finalPath + ".part"
-	f, err := os.Create(tmp)
+	f, err := os.OpenFile(tmp, flag, 0o644)
 	if err != nil {
-		return "", fmt.Errorf("create %s: %w", tmp, err)
+		return "", fmt.Errorf("open %s: %w", tmp, err)
 	}
 	defer func() {
 		_ = f.Close()
@@ -76,15 +103,21 @@ func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool) 
 	var bar *progressbar.ProgressBar
 	if !quiet {
 		desc := filepath.Base(finalPath)
-		if dl.Size > 0 {
+		if resuming {
+			desc = "↻ " + desc
+		}
+		if dl.TotalSize > 0 {
 			bar = progressbar.NewOptions64(
-				dl.Size,
+				dl.TotalSize,
 				progressbar.OptionSetDescription(desc),
 				progressbar.OptionShowBytes(true),
 				progressbar.OptionSetWidth(30),
 				progressbar.OptionThrottle(100*1e6),
 				progressbar.OptionClearOnFinish(),
 			)
+			if resuming {
+				_ = bar.Add64(dl.StartedAt)
+			}
 		} else {
 			bar = progressbar.NewOptions(-1,
 				progressbar.OptionSetDescription(desc),
@@ -97,14 +130,13 @@ func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool) 
 	}
 
 	if _, err := io.Copy(dst, dl.Reader); err != nil {
-		_ = os.Remove(tmp)
+		// keep the .part on i/o errors so the next run can resume
 		return "", fmt.Errorf("write %s: %w", tmp, err)
 	}
 	if bar != nil {
 		_ = bar.Finish()
 	}
 	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
 		return "", err
 	}
 	if err := os.Rename(tmp, finalPath); err != nil {
