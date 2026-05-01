@@ -2,11 +2,13 @@
     import '../app.css';
     import { page } from '$app/state';
     import { installPersistence } from '$stores/settings.svelte';
+    import { installQueuePersistence } from '$stores/queue.svelte';
     import EntryScreen from '$components/loading/EntryScreen.svelte';
 
     let { children } = $props();
 
     installPersistence();
+    installQueuePersistence();
 
     const navItems = [
         { label: 'INDEX', href: '/' },

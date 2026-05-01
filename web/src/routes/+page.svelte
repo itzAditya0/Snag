@@ -2,6 +2,7 @@
     import { submit, SnagAPIError } from '$lib/api/client';
     import type { SnagResponse, DownloadMode } from '$types/api';
     import { settings, buildRequest } from '$stores/settings.svelte';
+    import { enqueueOne } from '$stores/queue.svelte';
     import Picker from '$components/picker/Picker.svelte';
 
     let url = $state('');
@@ -40,6 +41,12 @@
             response = await submit(req);
             if (response.status === 'error') {
                 errorMsg = response.error.code;
+            } else {
+                // mirror successful submissions into the queue so /history
+                // shows them. options are stored without the url so retries
+                // can re-issue the same request shape.
+                const { url: _u, ...opts } = req;
+                enqueueOne(req.url, opts);
             }
         } catch (e) {
             errorMsg = e instanceof SnagAPIError ? e.code : 'unexpected.error';
