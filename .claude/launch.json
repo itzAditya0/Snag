@@ -1,0 +1,11 @@
+{
+    "version": "0.0.1",
+    "configurations": [
+        {
+            "name": "snag-web",
+            "runtimeExecutable": "pnpm",
+            "runtimeArgs": ["--filter", "@snag/web", "dev"],
+            "port": 5173
+        }
+    ]
+}

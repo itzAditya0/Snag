@@ -141,8 +141,8 @@
 <style>
     .hero {
         display: grid;
-        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-        gap: 4rem;
+        grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+        gap: 3rem;
         align-items: center;
         min-height: 60vh;
         padding: 2rem 0 4rem;
@@ -158,7 +158,7 @@
     .headline {
         font-family: var(--font-sans);
         font-weight: 500;
-        font-size: clamp(2.5rem, 6vw, 5.25rem);
+        font-size: clamp(2.2rem, 5vw, 4.5rem);
         line-height: 1.05;
         letter-spacing: -0.025em;
         margin: 0;
