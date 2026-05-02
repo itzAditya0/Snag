@@ -12,8 +12,8 @@ distributed instance discovery, and a richer format conversion pipeline.
 |---|---|---|
 | [`api/`](./api/) | Express API server, the engine that turns links into media | AGPL-3.0 |
 | [`web/`](./web/) | SvelteKit web frontend (independent reimplementation) | AGPL-3.0 |
-| [`cli/`](./cli/) | Go command-line client (planned) | AGPL-3.0 |
-| [`packages/`](./packages/) | shared workspace packages | AGPL-3.0 / MIT |
+| [`cli/`](./cli/) | `snag` Go command-line client — `brew install itzAditya0/snag/snag` | AGPL-3.0 |
+| [`packages/`](./packages/) | shared workspace packages | AGPL-3.0 |
 | [`docs/`](./docs/) | how to run an instance, env reference, api reference | AGPL-3.0 |
 
 ## what snag does
@@ -52,6 +52,57 @@ docker compose up
 ```
 
 api docs: [`docs/api.md`](./docs/api.md). environment variables: [`docs/api-env-variables.md`](./docs/api-env-variables.md).
+
+## the CLI
+
+snag ships a small Go binary that talks to any snag-compatible api. one-shot
+downloads, batch from a file, resumable streams, and tunnel-expiry recovery
+out of the box.
+
+### install
+
+**homebrew (macOS + linux)** — the recommended path. picks up new releases via
+`brew upgrade snag`:
+
+```sh
+brew install itzAditya0/snag/snag
+```
+
+**prebuilt binaries** — grab the matching tarball/zip for your os/arch from
+the [latest release](https://github.com/itzAditya0/Snag/releases/latest).
+extract `snag` and drop it on your `$PATH`. supports darwin (intel + apple
+silicon), linux (amd64 + arm64), and windows (amd64). every archive has a
+matching sha256 in `checksums.txt`.
+
+**from source** — needs Go 1.22+:
+
+```sh
+cd cli
+go build -o snag ./cmd/snag
+```
+
+### use
+
+```sh
+# point at your local api (default if SNAG_INSTANCE is unset)
+snag https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
+# pin output, request audio-only:
+snag https://soundcloud.com/... --audio -o ~/Music/track.opus
+
+# trim, resize, re-encode in one go:
+snag https://twitter.com/i/status/... --trim 00:01:23 --trim-end 00:01:33 \
+  --resize 720 --codec h265 -o clip.mp4
+
+# bulk download from a file (one URL per line):
+snag batch urls.txt --concurrency 4 --out-dir ~/Downloads/snag-batch
+
+# pick a different snag instance:
+snag --instance https://snag.example.com <url>
+# (or set it once: snag config set instance https://snag.example.com)
+```
+
+full reference and flag list: [`cli/README.md`](./cli/README.md).
 
 ## ethics
 
