@@ -21,6 +21,33 @@
     let lpPhase = $state('');
     let lpResult = $state<{ blobUrl: string; filename: string } | null>(null);
     let lpError = $state('');
+    // hold the active handle so we can terminate the worker on unmount
+    // and avoid 1 GiB+ heap leaks when the user navigates away mid-remux.
+    let lpHandle: import('$lib/local-processing/client').ProcessHandle | null = null;
+
+    // teardown on component destroy: kill the worker and revoke any
+    // outstanding blob URL.
+    $effect(() => {
+        return () => {
+            lpHandle?.cancel();
+            lpHandle = null;
+            if (lpResult) {
+                URL.revokeObjectURL(lpResult.blobUrl);
+                lpResult = null;
+            }
+        };
+    });
+
+    // shared blob-URL revoker — covers reset(), startLocalProcessing()
+    // re-runs, and component teardown. without this, every successful
+    // local-processing run pins another blob in heap (~200 MB+ for a
+    // 1080p YouTube DASH merge).
+    function clearLpResult() {
+        if (lpResult) {
+            URL.revokeObjectURL(lpResult.blobUrl);
+            lpResult = null;
+        }
+    }
 
     const trimRe = /^(\d+(\.\d{1,3})?|(\d{1,2}:){1,2}\d{1,2}(\.\d{1,3})?)$/;
     const trimValid = (s: string) => s.length === 0 || trimRe.test(s);
@@ -79,10 +106,11 @@
     function reset() {
         response = null;
         errorMsg = '';
-        if (lpResult) {
-            URL.revokeObjectURL(lpResult.blobUrl);
-        }
-        lpResult = null;
+        // cancel any in-flight worker before nuking the blob — otherwise
+        // a slow worker could deliver bytes and create yet another URL.
+        lpHandle?.cancel();
+        lpHandle = null;
+        clearLpResult();
         lpRunning = false;
         lpPhase = '';
         lpError = '';
@@ -90,19 +118,24 @@
 
     async function startLocalProcessing() {
         if (!response || response.status !== 'local-processing' || lpRunning) return;
+        // user is re-running (e.g. via "try again" after an error). free
+        // the prior blob and cancel any zombie worker before starting
+        // fresh — see clearLpResult comment above.
+        lpHandle?.cancel();
+        clearLpResult();
         lpError = '';
-        lpResult = null;
         lpRunning = true;
         lpPhase = 'starting…';
         try {
-            const handle = processLocally(response, (phase) => {
+            lpHandle = processLocally(response, (phase) => {
                 lpPhase = phase;
             });
-            lpResult = await handle.promise;
+            lpResult = await lpHandle.promise;
             lpPhase = 'done';
         } catch (err) {
             lpError = err instanceof Error ? err.message : String(err);
         } finally {
+            lpHandle = null;
             lpRunning = false;
         }
     }
