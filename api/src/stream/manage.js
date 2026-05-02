@@ -1,7 +1,7 @@
 import Store from "../store/store.js";
 
 import { nanoid } from "nanoid";
-import { randomBytes } from "crypto";
+import { randomBytes, timingSafeEqual } from "crypto";
 import { strict as assert } from "assert";
 import { setMaxListeners } from "node:events";
 
@@ -299,12 +299,23 @@ function wrapStream(streamInfo) {
     return streamInfo;
 }
 
+// constant-time string compare. `timingSafeEqual` requires equal-length
+// buffers; if lengths differ, fail fast (mismatched length is itself
+// distinguishable to an attacker, but exposes nothing more than the
+// existence of the request — and our nanoid/HMAC outputs are fixed
+// length, so legitimate requests always have matching lengths).
+const safeStringEqual = (a, b) => {
+    if (typeof a !== "string" || typeof b !== "string") return false;
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+};
+
 export async function verifyStream(id, hmac, exp, secret, iv) {
     try {
         const ghmac = hashHmac(`${id},${exp},${iv},${secret}`, 'stream').toString('base64url');
         const cache = await streamCache.get(id.toString());
 
-        if (ghmac !== String(hmac)) return { status: 401 };
+        if (!safeStringEqual(ghmac, String(hmac))) return { status: 401 };
         if (!cache) return { status: 404 };
 
         const streamInfo = JSON.parse(decryptStream(cache, iv, secret));

@@ -112,6 +112,27 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
 
     app.set('trust proxy', ['loopback', 'uniquelocal']);
 
+    // baseline security headers. we don't pull in `helmet` to keep the
+    // dep tree small — these four cover the common audit findings:
+    //   X-Content-Type-Options: prevents MIME sniffing on JSON bodies.
+    //   Referrer-Policy: avoids leaking download URLs to third parties.
+    //   X-Frame-Options: blocks clickjacking via iframe embed.
+    //   Strict-Transport-Security: only meaningful behind TLS, but
+    //     harmless on plain http and avoids forgotten-flag risk on prod.
+    // CSP intentionally omitted: the api serves JSON + binary streams,
+    // not html, so CSP would be no-op. webdocs deployment owns its own
+    // CSP at the static-host layer.
+    app.use((_, res, next) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.setHeader('X-Frame-Options', 'DENY');
+        res.setHeader(
+            'Strict-Transport-Security',
+            'max-age=31536000; includeSubDomains'
+        );
+        next();
+    });
+
     app.use('/', cors({
         methods: ['GET', 'POST'],
         exposedHeaders: [
@@ -371,8 +392,14 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
 
         const streamInfo = await verifyStream(id, sig, exp, sec, iv);
         if (!streamInfo?.service) {
+            // log expired/invalid tunnel hits so we can tell the difference
+            // between "you waited too long" (404) vs "ffmpeg blew up" (200
+            // with truncated body) vs "bad signature" (401).
+            console.log(`[tunnel] ${req.method} ${id} → ${streamInfo.status} (no service)`);
             return res.status(streamInfo.status).end();
         }
+
+        console.log(`[tunnel] ${req.method} ${id} → ${streamInfo.service}/${streamInfo.type}`);
 
         if (streamInfo.type === 'proxy') {
             streamInfo.range = req.headers['range'];

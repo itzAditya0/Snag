@@ -14,12 +14,20 @@ const IMGUR_API = "https://api.imgur.com/3";
 const REMOVED = "removed.png";
 
 // probe order matters: video extensions first so a video-having post
-// resolves to mp4 instead of imgur's synthesised still-image jpg, which
-// gets served at the same URL stem. each entry pins the expected
-// content-type kind so we don't mistake a fallback still for the real
-// content.
+// resolves to a real video instead of imgur's synthesised still-image
+// jpg, which gets served at the same URL stem. each entry pins the
+// expected content-type kind so we don't mistake a fallback still for
+// the real content.
+//
+// videoExts ⊃ { mp4, webm, mov, gifv } — gifv is normalised to mp4
+// elsewhere, so we probe webm and mov here to catch posts whose
+// primary asset isn't mp4 (rare but real, especially older imgur
+// uploads). without webm/mov in the probe order, those posts fall
+// through to image probes and silently return a synthesised still.
 const probeOrder = [
     { ext: "mp4", kind: "video" },
+    { ext: "webm", kind: "video" },
+    { ext: "mov", kind: "video" },
     { ext: "webp", kind: "image" }, // animated webp counts here
     { ext: "gif", kind: "image" },
     { ext: "jpg", kind: "image" },
@@ -74,6 +82,10 @@ const probeId = async (id) => {
                 method: "HEAD",
                 redirect: "follow",
                 headers: { "user-agent": genericUserAgent },
+                // imgur probes run on the request hot path. without a
+                // timeout, a slow CDN response could stall the whole
+                // /post for many seconds × probe count.
+                signal: AbortSignal.timeout(2500),
             });
             // accept only if:
             //   - final URL is still on the i.imgur.com CDN (not redirected

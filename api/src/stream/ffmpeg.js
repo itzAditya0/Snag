@@ -1,6 +1,9 @@
 import ffmpeg from "ffmpeg-static";
 import { spawn } from "child_process";
 import { create as contentDisposition } from "content-disposition-header";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import { env } from "../config.js";
 import { destroyInternalStream } from "./manage.js";
@@ -80,7 +83,40 @@ const codecMap = {
 // F2 Basic — emit the codec/scale/burn-subs args. caller is responsible for
 // ensuring -c:v copy is replaced with these. returns null if no conversion
 // is wanted.
-const buildVideoConversionArgs = (streamInfo, subsInputIndex = null) => {
+// fetch a remote subtitle URL into a temp file and return the path.
+// the caller is responsible for cleaning up the parent dir via cleanup().
+//
+// background: ffmpeg's `subtitles=` filter reads from a file path/URL
+// argument, not a stream index. cobalt's original code passed
+// `subtitles='1:0'` (referring to input index 1, stream 0) which is
+// invalid filter syntax and silently produced 0-byte downloads on every
+// burnSubtitles request. fetching the subtitle into a temp file and
+// passing the path gives the filter the format it actually expects,
+// without having to whitelist http for the subtitles-filter loader
+// (which has restrictive protocol_whitelist defaults).
+const materializeSubtitle = async (url) => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'snag-subs-'));
+    const filename = path.join(dir, 'subs.vtt');
+    const r = await fetch(url, { redirect: 'follow' });
+    if (!r.ok) throw new Error(`subtitle fetch ${r.status}`);
+    await writeFile(filename, Buffer.from(await r.arrayBuffer()));
+    return {
+        path: filename,
+        cleanup: () => rm(dir, { recursive: true, force: true }).catch(() => {})
+    };
+};
+
+// escape a path for inclusion inside an ffmpeg filter expression.
+// ffmpeg filter syntax uses ':' to separate options and ',' to chain
+// filters, so paths containing those characters need backslash-escapes.
+// we also escape backslashes themselves and single quotes.
+const escapeFilterArg = (s) =>
+    s.replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/:/g, '\\:')
+        .replace(/,/g, '\\,');
+
+const buildVideoConversionArgs = (streamInfo, _legacySubsInputIndex = null) => {
     if (!wantsConversion(streamInfo)) return null;
 
     const args = [];
@@ -90,9 +126,12 @@ const buildVideoConversionArgs = (streamInfo, subsInputIndex = null) => {
         filters.push(`scale=-2:${streamInfo.targetHeight}`);
     }
 
-    if (streamInfo.burnSubtitles && subsInputIndex !== null) {
-        // hardcode the soft subtitle track into pixels via the subtitles filter.
-        filters.push(`subtitles='${subsInputIndex}:0'`);
+    if (streamInfo.burnSubtitles && streamInfo.burnSubtitlesPath) {
+        // hardcode the subtitle file into pixels via the subtitles filter.
+        // the path was materialised to disk by materializeSubtitle() before
+        // ffmpeg spawned, so the filter just reads it from local fs — no
+        // protocol_whitelist gymnastics needed.
+        filters.push(`subtitles='${escapeFilterArg(streamInfo.burnSubtitlesPath)}'`);
     }
 
     if (filters.length > 0) {
@@ -158,7 +197,11 @@ const render = async (res, streamInfo, ffargs, estimateMultiplier) => {
 
     try {
         const args = [
-            '-loglevel', '-8',
+            // -loglevel error: surface real ffmpeg failures (codec issues,
+            // bad input, network errors). cobalt's -8 silences everything
+            // and turns failures into 0-byte downloads with no diagnostic.
+            // for self-hosted, errors in console >> silent corruption.
+            '-loglevel', 'error',
             ...ffargs,
         ];
 
@@ -192,27 +235,47 @@ const render = async (res, streamInfo, ffargs, estimateMultiplier) => {
 const remux = async (streamInfo, res) => {
     const format = resolveFormat(streamInfo);
     const urls = Array.isArray(streamInfo.urls) ? streamInfo.urls : [streamInfo.urls];
-    const args = buildInputs(urls, streamInfo);
 
     // if the stream type is merge, we expect two URLs
     if (streamInfo.type === 'merge' && urls.length !== 2) {
+        // log loudly: this used to silently produce a 0-byte download
+        // because closeResponse fires before any bytes hit the wire.
+        // when service handlers return type:"merge" but a single URL,
+        // it's a real bug worth seeing in logs.
+        console.error(
+            `[ffmpeg] type=merge expected 2 URLs, got ${urls.length} (service: ${streamInfo.service ?? 'unknown'})`
+        );
         return closeResponse(res);
     }
+
+    // burnSubtitles: ffmpeg's subtitles= filter takes a file path (not
+    // a stream index — that was cobalt's bug). materialise the URL into
+    // a temp file before spawning ffmpeg, attach the path to streamInfo,
+    // and clean up after.
+    let burnCleanup = null;
+    if (streamInfo.burnSubtitles && streamInfo.subtitles) {
+        try {
+            const sub = await materializeSubtitle(streamInfo.subtitles);
+            streamInfo.burnSubtitlesPath = sub.path;
+            burnCleanup = sub.cleanup;
+        } catch (err) {
+            console.error(`[ffmpeg] burnSubtitles fetch failed:`, err.message);
+            // soft-fail: emit the video without burned subs rather than
+            // silently producing 0 bytes.
+        }
+    }
+
+    const args = buildInputs(urls, streamInfo);
 
     const trimDuration = computeTrimDuration(streamInfo);
     if (trimDuration) {
         args.push('-t', trimDuration);
     }
 
-    // burn-subs needs the subtitle source as an input the filter graph can
-    // reference by index. when burnSubtitles is on, attach the subtitle as
-    // an input (no -map for it) so subtitles= can read it.
-    let subsInputIndex = null;
-    const burnSubs = streamInfo.burnSubtitles && streamInfo.subtitles;
-    if (burnSubs) {
-        subsInputIndex = urls.length;
-        args.push('-i', streamInfo.subtitles);
-    } else if (streamInfo.subtitles) {
+    // soft subtitles: attach as an input so the muxer can include them.
+    // (burnSubs path doesn't add subs as an input — they're consumed by
+    // the subtitles= filter from disk instead.)
+    if (streamInfo.subtitles && !streamInfo.burnSubtitles) {
         args.push(
             '-i', streamInfo.subtitles,
             '-map', `${urls.length}:s`,
@@ -232,7 +295,10 @@ const remux = async (streamInfo, res) => {
         );
     }
 
-    const conversionArgs = buildVideoConversionArgs(streamInfo, subsInputIndex);
+    // subsInputIndex is now legacy (burnSubtitles uses a file path, not
+    // a stream index) — kept null to satisfy buildVideoConversionArgs's
+    // signature without changing every caller.
+    const conversionArgs = buildVideoConversionArgs(streamInfo, null);
     if (conversionArgs) {
         args.push(...conversionArgs);
     } else {
@@ -269,7 +335,11 @@ const remux = async (streamInfo, res) => {
 
     args.push('-f', format === 'mkv' ? 'matroska' : format, 'pipe:3');
 
-    await render(res, streamInfo, args);
+    try {
+        await render(res, streamInfo, args);
+    } finally {
+        if (burnCleanup) await burnCleanup();
+    }
 }
 
 // F2 Polish — ffmpeg loudnorm filter targets. EBU R128 is the streaming

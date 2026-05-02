@@ -1,7 +1,14 @@
 import { nanoid } from "nanoid";
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 import { env } from "../config.js";
+
+// constant-time HMAC compare; rejects mismatched lengths fast.
+const safeEqualBase64Url = (a, b) => {
+    if (typeof a !== "string" || typeof b !== "string") return false;
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+};
 
 const toBase64URL = (b) => Buffer.from(b).toString("base64url");
 const fromBase64URL = (b) => Buffer.from(b, "base64url").toString();
@@ -50,7 +57,7 @@ const verify = (jwt, ip) => {
 
     const verifySignature = sign(header, payload);
 
-    if (verifySignature !== signature) {
+    if (!safeEqualBase64Url(verifySignature, signature)) {
         return false;
     }
 
