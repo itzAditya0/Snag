@@ -69,8 +69,12 @@ jobs:
           # ref_name on a tag push is the tag itself (e.g. cli-v0.1.0).
           # workflow_dispatch lets the operator override.
           TAG="${INPUT_TAG:-$REF_NAME}"
-          # strip the cli- prefix to get a clean semver-ish version.
+          # strip the cli- prefix and any leading v so filenames + the
+          # formula version use clean semver (matches goreleaser etc).
+          # the homebrew-update job below does the same strip — keep
+          # them in sync or the formula won't find its artifacts.
           VERSION="${TAG#cli-}"
+          VERSION="${VERSION#v}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
