@@ -79,12 +79,59 @@ export const defaults: Settings = {
 
 const STORAGE_KEY = 'snag.settings.v1';
 
+// settings schema migrations. each entry runs once when the saved
+// schemaVersion is below the index. the user's current version is
+// stored under SCHEMA_VERSION_KEY so we can do non-destructive
+// upgrades (e.g. flipping a default that we believe stale users
+// are stuck with) without nuking their other preferences.
+//
+// we do NOT bump STORAGE_KEY for this — that would reset every
+// preference, which is too aggressive when the actual change is
+// a single field's default flipping.
+const SCHEMA_VERSION_KEY = 'snag.settings.schemaVersion';
+const CURRENT_SCHEMA_VERSION = 2;
+
+const migrations: Array<(s: Record<string, unknown>) => void> = [
+    // v1 → v2: alwaysProxy default flipped false → true. for users
+    // whose stored value matches the OLD default exactly (false), the
+    // most likely explanation is "they never touched the setting and
+    // are running the old default" — so we adopt the new default. if
+    // someone explicitly set it to false and we mis-migrate, they can
+    // toggle it back in /settings; that's a strictly better state than
+    // having "always tunnel" be silently off and downloads silently
+    // failing on cross-origin CDN blocks.
+    (s) => {
+        if (s.alwaysProxy === false) {
+            delete s.alwaysProxy;
+        }
+    }
+];
+
 function load(): Settings {
     if (!browser) return { ...defaults };
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { ...defaults };
+        if (!raw) {
+            localStorage.setItem(SCHEMA_VERSION_KEY, String(CURRENT_SCHEMA_VERSION));
+            return { ...defaults };
+        }
         const parsed = JSON.parse(raw);
+
+        // run pending migrations on the parsed object before merge.
+        const savedVersion = parseInt(
+            localStorage.getItem(SCHEMA_VERSION_KEY) ?? '1',
+            10
+        );
+        for (let v = savedVersion; v < CURRENT_SCHEMA_VERSION; v++) {
+            migrations[v - 1]?.(parsed);
+        }
+        if (savedVersion < CURRENT_SCHEMA_VERSION) {
+            localStorage.setItem(
+                SCHEMA_VERSION_KEY,
+                String(CURRENT_SCHEMA_VERSION)
+            );
+        }
+
         // merge so newly-added keys get their defaults
         return { ...defaults, ...parsed };
     } catch {

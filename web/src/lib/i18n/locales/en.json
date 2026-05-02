@@ -33,7 +33,7 @@
         "result_dismiss": "dismiss",
         "result_error": "error",
         "trim_invalid": "invalid time format. use ss, mm:ss, or hh:mm:ss",
-        "unexpected_error": "unexpected.error",
+        "unexpected_error": "something unexpected happened. check the console and try again.",
 
         "lp_label": "in-browser processing",
         "lp_summary_one": "{n} stream to merge ({type}). nothing leaves your device.",
@@ -43,5 +43,91 @@
         "lp_try_again": "try again",
         "lp_raw_streams": "or grab the raw streams",
         "lp_stream_label": "stream {n}"
+    },
+
+    "error": {
+        "api": {
+            "generic": "something went wrong on our end. try again in a moment.",
+            "invalid_body": "couldn't parse that request. is the URL well-formed?",
+            "rate_exceeded": "you're going too fast. wait a bit and try again.",
+
+            "header": {
+                "accept": "the api needs an Accept: application/json header.",
+                "content_type": "the api needs a Content-Type: application/json header."
+            },
+
+            "auth": {
+                "not_configured": "this instance isn't accepting anonymous requests.",
+                "jwt": {
+                    "missing": "this instance needs a session token. refresh and try again.",
+                    "invalid": "session token rejected. refresh and try again."
+                },
+                "turnstile": {
+                    "missing": "captcha challenge missing. refresh and try again.",
+                    "invalid": "captcha challenge failed. refresh and try again."
+                }
+            },
+
+            "link": {
+                "missing": "no link provided.",
+                "invalid": "that doesn't look like a valid URL.",
+                "unsupported": "this site isn't supported. check the list at the bottom of the page."
+            },
+
+            "service": {
+                "unsupported": "this service isn't supported on this instance.",
+                "audio_not_supported": "audio extraction isn't supported for this service.",
+                "token": {
+                    "required": "this service needs an API key configured on the instance."
+                }
+            },
+
+            "fetch": {
+                "empty": "the source returned nothing. the post may be deleted or private.",
+                "critical": "the upstream fetch failed. try again, or try a different format.",
+                "rate": "the upstream is rate-limiting us. try again in a few minutes.",
+                "fail": "the upstream fetch failed.",
+                "short_link": "couldn't resolve the short link."
+            },
+
+            "trim": {
+                "invalid_range": "trim range is invalid (start ≥ end, or past the file length)."
+            },
+
+            "batch": {
+                "invalid_size": "batch must contain 1–50 URLs.",
+                "invalid_url": "one of the URLs in the batch is invalid.",
+                "unknown_options": "unknown option in batch request body."
+            },
+
+            "content": {
+                "paid": "this content is paywalled.",
+                "region": "this content is geo-restricted.",
+                "too_long": "this content is too long for this instance.",
+                "post": {
+                    "age": "this post is age-restricted.",
+                    "private": "this post is private.",
+                    "unavailable": "this post is unavailable."
+                },
+                "video": {
+                    "age": "this video is age-restricted.",
+                    "live": "live streams aren't supported. wait for the VOD.",
+                    "private": "this video is private.",
+                    "region": "this video is geo-restricted.",
+                    "unavailable": "this video is unavailable."
+                }
+            },
+
+            "youtube": {
+                "api_error": "youtube returned an error. try again in a moment.",
+                "decipher": "youtube changed something. an instance update may be needed.",
+                "drm": "this video is DRM-protected. snag won't bypass DRM.",
+                "login": "youtube wants a login for this video. anonymous fetch failed.",
+                "no_hls_streams": "no HLS streams available for this video.",
+                "no_matching_format": "no stream matches the requested quality + codec.",
+                "no_session_tokens": "the instance has no youtube session tokens configured.",
+                "token_expired": "the instance's youtube session token expired."
+            }
+        }
     }
 }

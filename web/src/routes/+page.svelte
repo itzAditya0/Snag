@@ -35,7 +35,9 @@
         e.preventDefault();
         if (!url.trim() || busy) return;
         if (!trimValid(trimStart) || !trimValid(trimEnd) || !trimValid(thumbnailAt)) {
-            errorMsg = t('home.trim_invalid');
+            // store the i18n key, not the resolved string, so locale changes
+            // re-translate the message reactively at render time.
+            errorMsg = 'home.trim_invalid';
             return;
         }
 
@@ -68,7 +70,7 @@
                 enqueueOne(req.url, opts);
             }
         } catch (e) {
-            errorMsg = e instanceof SnagAPIError ? e.code : t('home.unexpected_error');
+            errorMsg = e instanceof SnagAPIError ? e.code : 'home.unexpected_error';
         } finally {
             busy = false;
         }
@@ -383,6 +385,7 @@
         {#if errorMsg}
             <div class="error">
                 <p class="result-label tracked">{t('home.result_error')}</p>
+                <p class="error-message">{t(errorMsg)}</p>
                 <p class="error-code mono">{errorMsg}</p>
                 <button class="reset tracked" onclick={reset}>{t('home.result_dismiss')}</button>
             </div>
@@ -766,10 +769,18 @@
         border-bottom-color: var(--text);
     }
 
+    .error-message {
+        margin: 0 0 0.4rem;
+        color: var(--text);
+        font-size: 1.05rem;
+        line-height: 1.4;
+    }
+
     .error-code {
         margin: 0;
         color: var(--error);
-        font-size: 0.85rem;
+        font-size: 0.75rem;
+        opacity: 0.7;
     }
 
     /* ---------- responsive ---------- */
