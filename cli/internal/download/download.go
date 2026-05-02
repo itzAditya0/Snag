@@ -15,18 +15,29 @@ import (
 	"github.com/snag/snag-cli/internal/client"
 )
 
+// ResubmitFunc re-issues the original POST that produced the response
+// being saved. Used to mint a fresh tunnel URL when the current one
+// expires mid-download. Pass nil if you don't have the original
+// request handy — Save will fail hard on tunnel expiry instead of
+// retrying.
+type ResubmitFunc func() (*client.Response, error)
+
 // Save streams a response payload to disk. If outputPath is empty,
 // the filename from the API response (or HTTP Content-Disposition)
 // is used, falling back to "snag-download" when neither is present.
 // Returns the final on-disk path written.
-func Save(c *client.Client, resp *client.Response, outputPath string, quiet bool) (string, error) {
+//
+// resubmit is optional: when provided, Save will recover from tunnel
+// expiry mid-download by calling resubmit() to obtain a fresh tunnel
+// URL and resuming from the bytes already on disk.
+func Save(c *client.Client, resp *client.Response, outputPath string, quiet bool, resubmit ResubmitFunc) (string, error) {
 	if resp == nil {
 		return "", errors.New("nil response")
 	}
 
 	switch resp.Status {
 	case "redirect", "tunnel":
-		return saveSingle(c, resp.URL, resp.Filename, outputPath, quiet)
+		return saveSingle(c, resp.URL, resp.Filename, outputPath, quiet, resubmit)
 	case "picker":
 		return "", fmt.Errorf("picker responses (%d items) require --pick or interactive mode (not yet supported by the cli)", len(resp.Picker))
 	case "local-processing":
@@ -43,7 +54,7 @@ func Save(c *client.Client, resp *client.Response, outputPath string, quiet bool
 	}
 }
 
-func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool) (string, error) {
+func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool, resubmit ResubmitFunc) (string, error) {
 	if url == "" {
 		return "", errors.New("response missing url")
 	}
@@ -64,26 +75,70 @@ func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool) 
 		startAt = info.Size()
 	}
 
-	dl, err := c.Fetch(url, startAt)
+	// fetchOnce wraps a single GET attempt. on tunnel-expired responses
+	// we mint a fresh tunnel via resubmit() and retry; we only do this
+	// once per Save call so a misconfigured api can't put us in an
+	// infinite re-mint loop.
+	dl, currentURL, err := fetchOnce(c, url, startAt, resubmit)
 	if err != nil {
 		return "", err
 	}
 	defer dl.Reader.Close()
+	_ = currentURL
 
 	// if the API negotiated a different filename, refresh finalPath / tmp
 	// only when the caller didn't pin a specific output file. avoids the
 	// rare case where Content-Disposition yields a name we hadn't seen.
+	//
+	// AUDIT FIX: previous code overwrote finalPath/tmp without moving the
+	// already-accumulated .part — leaving the resume bytes orphaned on
+	// disk and starting fresh from byte 0 at the new path. now we rename
+	// the existing .part to the new tmp so the resume actually resumes.
 	if dl.Filename != "" && filename == "" && outputPath == "" {
-		alt, err := resolveOutputPath(outputPath, dl.Filename, dl.Filename)
-		if err == nil {
-			finalPath = alt
-			tmp = finalPath + ".part"
+		alt, altErr := resolveOutputPath(outputPath, dl.Filename, dl.Filename)
+		if altErr == nil && alt != finalPath {
+			newTmp := alt + ".part"
+			if startAt > 0 {
+				if renameErr := os.Rename(tmp, newTmp); renameErr != nil {
+					// rename failed (probably cross-device) — fall back to
+					// keeping the original path so we don't lose progress.
+					_ = renameErr
+				} else {
+					finalPath = alt
+					tmp = newTmp
+				}
+			} else {
+				finalPath = alt
+				tmp = newTmp
+			}
 		}
 	}
 
-	// If we asked for a Range but the server gave us 200 (full content)
-	// — or if the existing .part offset doesn't match the negotiated
-	// StartedAt — restart from zero.
+	// AUDIT FIX (blocker): cobalt's resume check was too permissive. If
+	// the server returned 206 with `Content-Range: bytes K-...` where
+	// K != startAt, we'd treat resuming=false, O_TRUNC the .part, and
+	// then write the server's bytes-from-K starting at offset 0 — losing
+	// the first K bytes of the source silently.
+	//
+	// the only safe options when 206 offset doesn't match our request are:
+	//   a) re-fetch from byte 0 (we asked for K, server gave us K' — we
+	//      can't reconcile, so start over and overwrite from scratch)
+	//   b) error out
+	// we do (a). it costs the bytes we already had, but produces a
+	// correct file rather than a corrupted one.
+	if dl.IsPartial && dl.StartedAt != startAt {
+		dl.Reader.Close()
+		// re-fetch from 0; ignore the existing .part contents.
+		dl, currentURL, err = fetchOnce(c, currentURL, 0, resubmit)
+		if err != nil {
+			return "", fmt.Errorf("retry from 0 after offset mismatch: %w", err)
+		}
+		defer dl.Reader.Close()
+		startAt = 0
+	}
+
+	// If we asked for a Range but the server gave us 200 (full content),
+	// restart from zero.
 	resuming := dl.IsPartial && startAt > 0 && dl.StartedAt == startAt
 	flag := os.O_CREATE | os.O_WRONLY
 	if resuming {
@@ -140,10 +195,62 @@ func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool) 
 		return "", err
 	}
 	if err := os.Rename(tmp, finalPath); err != nil {
+		// AUDIT FIX: previous code removed the .part on rename failure,
+		// losing all the downloaded bytes. cross-device rename is the
+		// most common cause; copy + remove instead so the data survives.
+		if copyErr := copyFile(tmp, finalPath); copyErr != nil {
+			return "", fmt.Errorf("rename %s -> %s: %w (copy fallback: %v)", tmp, finalPath, err, copyErr)
+		}
 		_ = os.Remove(tmp)
-		return "", err
 	}
 	return finalPath, nil
+}
+
+// fetchOnce issues a single Fetch and recovers from a tunnel-expired
+// response by re-POSTing the original request via resubmit() exactly
+// once. Returns the active URL alongside the Download so callers can
+// re-Fetch (e.g. for 206-offset retry) against the right URL.
+func fetchOnce(c *client.Client, url string, startAt int64, resubmit ResubmitFunc) (*client.Download, string, error) {
+	dl, err := c.Fetch(url, startAt)
+	if err == nil {
+		return dl, url, nil
+	}
+	var fe *client.FetchError
+	if !errors.As(err, &fe) || !fe.IsTunnelExpired() || resubmit == nil {
+		return nil, url, err
+	}
+	// tunnel TTL elapsed mid-download. re-issue the original POST to
+	// mint a fresh tunnel URL, then re-Fetch from where we left off.
+	resp, rerr := resubmit()
+	if rerr != nil {
+		return nil, url, fmt.Errorf("resubmit after tunnel-expiry: %w", rerr)
+	}
+	if resp == nil || resp.URL == "" {
+		return nil, url, errors.New("resubmit returned no url")
+	}
+	dl, err = c.Fetch(resp.URL, startAt)
+	if err != nil {
+		return nil, resp.URL, fmt.Errorf("fetch fresh tunnel: %w", err)
+	}
+	return dl, resp.URL, nil
+}
+
+// copyFile is a fallback for cross-device os.Rename failures.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 // resolveOutputPath chooses the final on-disk path:

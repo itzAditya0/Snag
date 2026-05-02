@@ -167,6 +167,26 @@ func (c *Client) Info() (*InstanceInfo, error) {
 	return &out, nil
 }
 
+// FetchError reports a non-2xx HTTP status from a download URL. Useful
+// for distinguishing recoverable conditions like tunnel expiry (403/410
+// from the snag api) from generic network failures.
+type FetchError struct {
+	StatusCode int
+	URL        string
+}
+
+func (e *FetchError) Error() string {
+	return fmt.Sprintf("download %s returned %d", e.URL, e.StatusCode)
+}
+
+// IsTunnelExpired reports whether the status looks like a tunnel TTL
+// rejection from snag-api: 403 (signature ok but exp passed in older
+// builds) or 410 Gone. The caller should re-POST the original request
+// to mint a fresh tunnel URL and retry from the bytes already on disk.
+func (e *FetchError) IsTunnelExpired() bool {
+	return e.StatusCode == 403 || e.StatusCode == 404 || e.StatusCode == 410
+}
+
 // Download is a streaming response. The Reader yields the bytes the
 // caller needs to write; for resumed downloads (IsPartial true) the
 // reader yields only the bytes after StartedAt.
@@ -214,7 +234,10 @@ func (c *Client) Fetch(downloadURL string, startAt int64) (*Download, error) {
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		resp.Body.Close()
-		return nil, fmt.Errorf("download returned %d", resp.StatusCode)
+		// typed error so callers can distinguish "tunnel expired" (403/410)
+		// from real transport errors and re-issue the original POST to
+		// mint a fresh tunnel URL.
+		return nil, &FetchError{StatusCode: resp.StatusCode, URL: downloadURL}
 	}
 
 	d := &Download{

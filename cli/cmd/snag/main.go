@@ -186,7 +186,13 @@ func runDownload(cmd *cobra.Command, args []string) error {
 		return apiErr{code: resp.Error.Code}
 	}
 
-	final, err := download.Save(c, resp, flagOutput, flagQuiet)
+	// resubmit closure: if the tunnel TTL elapses mid-download, Save
+	// will call this to mint a fresh tunnel URL and resume from the
+	// bytes already on disk. captures `req` so all user options (codec,
+	// trim, etc.) survive the re-issue.
+	resubmit := func() (*client.Response, error) { return c.Submit(req) }
+
+	final, err := download.Save(c, resp, flagOutput, flagQuiet, resubmit)
 	if err != nil {
 		return err
 	}
@@ -649,7 +655,9 @@ func runBatch(srcPath, outDir string, concurrency int, continueOnError bool) err
 				return
 			}
 
-			final, err := download.Save(c, resp, outDir, true /* always quiet per-url for batch */)
+			batchReq := req // capture for resubmit closure (loop variable safety)
+			resubmit := func() (*client.Response, error) { return c.Submit(batchReq) }
+			final, err := download.Save(c, resp, outDir, true /* always quiet per-url for batch */, resubmit)
 			if err != nil {
 				res.errMsg = err.Error()
 				return
