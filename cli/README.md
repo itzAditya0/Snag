@@ -13,7 +13,30 @@ snag info
 snag instances pick https://your-snag-instance.example.com
 ```
 
-## install (from source)
+## install
+
+### homebrew (macos + linux)
+
+```sh
+brew install itzAditya0/snag/snag
+```
+
+`brew upgrade snag` picks up new releases automatically. supports
+darwin (intel + apple silicon) and linux (amd64 + arm64). see
+[docs/homebrew-publishing.md](../docs/homebrew-publishing.md) for the
+maintainer setup if you're forking.
+
+### prebuilt binaries (any platform)
+
+grab the latest release at https://github.com/itzAditya0/Snag/releases
+and pick the archive for your os/arch. the `snag` binary inside is
+self-contained — drop it in `~/.local/bin/` (linux/macos) or anywhere
+on `$PATH`.
+
+verify the download with the `checksums.txt` shipped alongside the
+release.
+
+### from source
 
 ```sh
 cd cli

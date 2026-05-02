@@ -156,3 +156,104 @@ jobs:
           files: |
             dist/snag_*
             dist/checksums.txt
+
+  homebrew:
+    name: update homebrew tap
+    needs: release
+    runs-on: ubuntu-latest
+    # only run if the operator has wired up the tap secret. without
+    # HOMEBREW_TAP_TOKEN we silently skip — release artifacts still
+    # ship, just without auto-publishing the formula update.
+    if: ${{ vars.HOMEBREW_TAP_REPO != '' }}
+    steps:
+      - name: checkout source for formula template
+        uses: actions/checkout@v4
+        with:
+          path: src
+
+      - name: derive version
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          VERSION="${TAG#cli-v}"
+          # strip leading 'v' too, in case someone tagged cli-vv1.0.0
+          VERSION="${VERSION#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: compute per-platform sha256
+        id: sha
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        working-directory: dist
+        run: |
+          for triplet in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
+            ARCHIVE="snag_${VERSION}_${triplet}.tar.gz"
+            if [ ! -f "$ARCHIVE" ]; then
+              echo "missing artifact: $ARCHIVE" >&2
+              exit 1
+            fi
+            HASH="$(sha256sum "$ARCHIVE" | cut -d' ' -f1)"
+            echo "${triplet}=${HASH}" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.HOMEBREW_TAP_REPO }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: render formula
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA_DARWIN_AMD64: ${{ steps.sha.outputs.darwin_amd64 }}
+          SHA_DARWIN_ARM64: ${{ steps.sha.outputs.darwin_arm64 }}
+          SHA_LINUX_AMD64: ${{ steps.sha.outputs.linux_amd64 }}
+          SHA_LINUX_ARM64: ${{ steps.sha.outputs.linux_arm64 }}
+        run: |
+          mkdir -p tap/Formula
+          # render the template by literal substitution. envsubst would
+          # also work but sed keeps us hermetic across runners. use a
+          # quoted heredoc-like form so the env var values can't be
+          # interpreted as sed metacharacters.
+          python3 - <<'PY'
+          import os, pathlib
+          tpl = pathlib.Path("src/cli/homebrew/snag.rb").read_text()
+          subs = {
+              "__VERSION__":            os.environ["VERSION"],
+              "__SHA256_DARWIN_AMD64__": os.environ["SHA_DARWIN_AMD64"],
+              "__SHA256_DARWIN_ARM64__": os.environ["SHA_DARWIN_ARM64"],
+              "__SHA256_LINUX_AMD64__":  os.environ["SHA_LINUX_AMD64"],
+              "__SHA256_LINUX_ARM64__":  os.environ["SHA_LINUX_ARM64"],
+          }
+          for k, v in subs.items():
+              tpl = tpl.replace(k, v)
+          pathlib.Path("tap/Formula/snag.rb").write_text(tpl)
+          PY
+
+      - name: commit and push to tap
+        working-directory: tap
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/snag.rb
+          if git diff --staged --quiet; then
+            echo "no changes to formula"
+            exit 0
+          fi
+          # commit message uses env vars not direct interpolation —
+          # never trust ${{ github.* }} strings in shell command text.
+          git commit -m "snag ${VERSION} (auto-update from ${TAG})"
+          git push
