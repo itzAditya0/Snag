@@ -108,6 +108,66 @@
     function setMode(m: DownloadMode) {
         settings.downloadMode = m;
     }
+
+    // saving state for the fetch-to-blob path. shown next to the link
+    // so the user knows the click is doing something for slow downloads.
+    let saving = $state(false);
+
+    // intercept clicks on the result link and force a real download.
+    //
+    // why: the html5 `download` attribute is silently ignored by browsers
+    // for cross-origin urls (security: prevents arbitrary sites from
+    // force-downloading attacker-chosen filenames from third-party CDNs).
+    // for `redirect` responses we hand back the source CDN url directly,
+    // which is cross-origin → the attribute does nothing → click just
+    // navigates → some browsers (Dex, Brave with shields, corp-network
+    // proxies) block the inline video load with "Access denied".
+    //
+    // fix: fetch the bytes ourselves, wrap them in a same-origin Blob, and
+    // synthesise an `<a download>` click. this matches what cobalt.tools
+    // does. tunnel responses are already same-origin (`localhost:9000/...`)
+    // and serve a proper Content-Disposition, so we skip the trick there.
+    //
+    // graceful fallback: if fetch fails (CORS denied, network error), we
+    // fall back to the default navigation behavior — same as today.
+    async function handleDownloadClick(e: MouseEvent) {
+        if (!response) return;
+        if (response.status !== 'redirect') return;
+
+        // let middle-click / cmd-click / ctrl-click open in a new tab as
+        // the user clearly asked for that.
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+        e.preventDefault();
+        if (saving) return;
+
+        const targetUrl = response.url;
+        const filename = response.filename ?? 'download';
+
+        try {
+            saving = true;
+            const r = await fetch(targetUrl);
+            if (!r.ok) throw new Error(`fetch ${r.status}`);
+            const blob = await r.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            // give the browser a beat to attach the blob to the download
+            // before we revoke it.
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        } catch (err) {
+            // CORS denied or network error → fall back to plain navigate
+            // so at least the user gets the source CDN page.
+            console.warn('save-as failed, falling back to navigation:', err);
+            window.location.href = targetUrl;
+        } finally {
+            saving = false;
+        }
+    }
 </script>
 
 <div class="hero">
@@ -130,9 +190,16 @@
             <div class="result">
                 {#if response.status === 'redirect' || response.status === 'tunnel'}
                     <p class="result-label tracked">{t('home.result_ready')}</p>
-                    <a class="result-link" href={response.url} download={response.filename ?? ''}>
+                    <a
+                        class="result-link"
+                        href={response.url}
+                        download={response.filename ?? ''}
+                        onclick={handleDownloadClick}
+                    >
                         <span class="filename">{response.filename ?? 'download'}</span>
-                        <span class="result-arrow" aria-hidden="true">&rarr;</span>
+                        <span class="result-arrow" aria-hidden="true"
+                            >{saving ? '…' : '→'}</span
+                        >
                     </a>
                 {:else if response.status === 'picker'}
                     <Picker {response} />
