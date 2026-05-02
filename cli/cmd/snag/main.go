@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -46,7 +48,15 @@ var (
 )
 
 func main() {
-	if err := newRootCmd().Execute(); err != nil {
+	// install a SIGINT/SIGTERM-cancellable root context so Ctrl+C
+	// propagates through cmd.Context() into Submit/Fetch/io.Copy and
+	// actually stops in-flight work instead of waiting for the OS to
+	// kill us. without this, cobra runs to completion on its own
+	// background context and Ctrl+C is a no-op for the http path.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := newRootCmd().ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(exitCodeFor(err))
 	}
@@ -177,8 +187,9 @@ func runDownload(cmd *cobra.Command, args []string) error {
 	c.APIKey = flagAPIKey
 
 	req := buildRequest(url)
+	ctx := cmd.Context()
 
-	resp, err := c.Submit(req)
+	resp, err := c.SubmitContext(ctx, req)
 	if err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}
@@ -188,11 +199,12 @@ func runDownload(cmd *cobra.Command, args []string) error {
 
 	// resubmit closure: if the tunnel TTL elapses mid-download, Save
 	// will call this to mint a fresh tunnel URL and resume from the
-	// bytes already on disk. captures `req` so all user options (codec,
-	// trim, etc.) survive the re-issue.
-	resubmit := func() (*client.Response, error) { return c.Submit(req) }
+	// bytes already on disk. captures `req` and `ctx` so all user
+	// options (codec, trim, etc.) survive the re-issue, and so Ctrl+C
+	// during a re-Submit still cancels the http call.
+	resubmit := func() (*client.Response, error) { return c.SubmitContext(ctx, req) }
 
-	final, err := download.Save(c, resp, flagOutput, flagQuiet, resubmit)
+	final, err := download.Save(ctx, c, resp, flagOutput, flagQuiet, resubmit)
 	if err != nil {
 		return err
 	}
@@ -522,7 +534,7 @@ filename suggested by the API.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runBatch(args[0], batchOutDir, batchConcurrency, batchContinueOnError)
+			return runBatch(cmd.Context(), args[0], batchOutDir, batchConcurrency, batchContinueOnError)
 		},
 	}
 
@@ -572,7 +584,7 @@ type batchResult struct {
 	duration time.Duration
 }
 
-func runBatch(srcPath, outDir string, concurrency int, continueOnError bool) error {
+func runBatch(ctx context.Context, srcPath, outDir string, concurrency int, continueOnError bool) error {
 	if concurrency < 1 {
 		concurrency = 1
 	}
@@ -615,8 +627,20 @@ func runBatch(srcPath, outDir string, concurrency int, continueOnError bool) err
 
 	start := time.Now()
 	for i, u := range urls {
+		// gate sem-acquire on context so Ctrl+C between URLs doesn't keep
+		// taking new work. without this, concurrency=4 on 1000 URLs would
+		// continue dispatching for ages after the user signalled cancel.
+		select {
+		case <-ctx.Done():
+			break
+		case sem <- struct{}{}:
+		}
+		if ctx.Err() != nil {
+			// loop exited mid-acquire; don't fan out more goroutines.
+			break
+		}
+
 		wg.Add(1)
-		sem <- struct{}{}
 		go func(idx int, url string) {
 			defer wg.Done()
 			defer func() { <-sem }()
@@ -641,7 +665,7 @@ func runBatch(srcPath, outDir string, concurrency int, continueOnError bool) err
 			}()
 
 			req := buildRequest(url)
-			resp, err := c.Submit(req)
+			resp, err := c.SubmitContext(ctx, req)
 			if err != nil {
 				res.errMsg = "transport: " + err.Error()
 				return
@@ -656,8 +680,8 @@ func runBatch(srcPath, outDir string, concurrency int, continueOnError bool) err
 			}
 
 			batchReq := req // capture for resubmit closure (loop variable safety)
-			resubmit := func() (*client.Response, error) { return c.Submit(batchReq) }
-			final, err := download.Save(c, resp, outDir, true /* always quiet per-url for batch */, resubmit)
+			resubmit := func() (*client.Response, error) { return c.SubmitContext(ctx, batchReq) }
+			final, err := download.Save(ctx, c, resp, outDir, true /* always quiet per-url for batch */, resubmit)
 			if err != nil {
 				res.errMsg = err.Error()
 				return

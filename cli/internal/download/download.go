@@ -3,6 +3,7 @@
 package download
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -30,14 +31,18 @@ type ResubmitFunc func() (*client.Response, error)
 // resubmit is optional: when provided, Save will recover from tunnel
 // expiry mid-download by calling resubmit() to obtain a fresh tunnel
 // URL and resuming from the bytes already on disk.
-func Save(c *client.Client, resp *client.Response, outputPath string, quiet bool, resubmit ResubmitFunc) (string, error) {
+//
+// Cancelling ctx aborts the in-flight HTTP request and any io.Copy
+// reading from it; the .part is preserved so a future invocation can
+// resume.
+func Save(ctx context.Context, c *client.Client, resp *client.Response, outputPath string, quiet bool, resubmit ResubmitFunc) (string, error) {
 	if resp == nil {
 		return "", errors.New("nil response")
 	}
 
 	switch resp.Status {
 	case "redirect", "tunnel":
-		return saveSingle(c, resp.URL, resp.Filename, outputPath, quiet, resubmit)
+		return saveSingle(ctx, c, resp.URL, resp.Filename, outputPath, quiet, resubmit)
 	case "picker":
 		return "", fmt.Errorf("picker responses (%d items) require --pick or interactive mode (not yet supported by the cli)", len(resp.Picker))
 	case "local-processing":
@@ -54,7 +59,7 @@ func Save(c *client.Client, resp *client.Response, outputPath string, quiet bool
 	}
 }
 
-func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool, resubmit ResubmitFunc) (string, error) {
+func saveSingle(ctx context.Context, c *client.Client, url, filename, outputPath string, quiet bool, resubmit ResubmitFunc) (string, error) {
 	if url == "" {
 		return "", errors.New("response missing url")
 	}
@@ -79,7 +84,7 @@ func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool, 
 	// we mint a fresh tunnel via resubmit() and retry; we only do this
 	// once per Save call so a misconfigured api can't put us in an
 	// infinite re-mint loop.
-	dl, currentURL, err := fetchOnce(c, url, startAt, resubmit)
+	dl, currentURL, err := fetchOnce(ctx, c, url, startAt, resubmit)
 	if err != nil {
 		return "", err
 	}
@@ -129,7 +134,7 @@ func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool, 
 	if dl.IsPartial && dl.StartedAt != startAt {
 		dl.Reader.Close()
 		// re-fetch from 0; ignore the existing .part contents.
-		dl, currentURL, err = fetchOnce(c, currentURL, 0, resubmit)
+		dl, currentURL, err = fetchOnce(ctx, c, currentURL, 0, resubmit)
 		if err != nil {
 			return "", fmt.Errorf("retry from 0 after offset mismatch: %w", err)
 		}
@@ -210,8 +215,8 @@ func saveSingle(c *client.Client, url, filename, outputPath string, quiet bool, 
 // response by re-POSTing the original request via resubmit() exactly
 // once. Returns the active URL alongside the Download so callers can
 // re-Fetch (e.g. for 206-offset retry) against the right URL.
-func fetchOnce(c *client.Client, url string, startAt int64, resubmit ResubmitFunc) (*client.Download, string, error) {
-	dl, err := c.Fetch(url, startAt)
+func fetchOnce(ctx context.Context, c *client.Client, url string, startAt int64, resubmit ResubmitFunc) (*client.Download, string, error) {
+	dl, err := c.FetchContext(ctx, url, startAt)
 	if err == nil {
 		return dl, url, nil
 	}
@@ -221,6 +226,8 @@ func fetchOnce(c *client.Client, url string, startAt int64, resubmit ResubmitFun
 	}
 	// tunnel TTL elapsed mid-download. re-issue the original POST to
 	// mint a fresh tunnel URL, then re-Fetch from where we left off.
+	// the resubmit closure should observe ctx via SubmitContext if it
+	// was set up correctly — see runDownload / runBatch in main.go.
 	resp, rerr := resubmit()
 	if rerr != nil {
 		return nil, url, fmt.Errorf("resubmit after tunnel-expiry: %w", rerr)
@@ -228,7 +235,7 @@ func fetchOnce(c *client.Client, url string, startAt int64, resubmit ResubmitFun
 	if resp == nil || resp.URL == "" {
 		return nil, url, errors.New("resubmit returned no url")
 	}
-	dl, err = c.Fetch(resp.URL, startAt)
+	dl, err = c.FetchContext(ctx, resp.URL, startAt)
 	if err != nil {
 		return nil, resp.URL, fmt.Errorf("fetch fresh tunnel: %w", err)
 	}

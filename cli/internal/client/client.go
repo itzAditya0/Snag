@@ -6,6 +6,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -119,13 +120,24 @@ func (c *Client) headers(req *http.Request) {
 // Submit POSTs the request to /. Returns the decoded response. A
 // transport error (network, JSON parse) is returned as an error;
 // API-level error responses come back inside Response.
+//
+// The legacy no-ctx form remains for callers that don't have one;
+// new code should prefer SubmitContext so Ctrl+C can interrupt.
 func (c *Client) Submit(r Request) (*Response, error) {
+	return c.SubmitContext(context.Background(), r)
+}
+
+// SubmitContext is the context-aware Submit. Cancelling ctx aborts
+// the in-flight HTTP request, letting Ctrl+C interrupt long-running
+// API calls (especially relevant in batch mode where dozens of
+// goroutines might each be mid-Submit).
+func (c *Client) SubmitContext(ctx context.Context, r Request) (*Response, error) {
 	body, err := json.Marshal(r)
 	if err != nil {
 		return nil, fmt.Errorf("encode request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.BaseURL+"/", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +159,12 @@ func (c *Client) Submit(r Request) (*Response, error) {
 
 // Info pulls GET / for instance metadata.
 func (c *Client) Info() (*InstanceInfo, error) {
-	req, err := http.NewRequest("GET", c.BaseURL+"/", nil)
+	return c.InfoContext(context.Background())
+}
+
+// InfoContext is the context-aware Info.
+func (c *Client) InfoContext(ctx context.Context) (*InstanceInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.BaseURL+"/", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -214,11 +231,20 @@ type Download struct {
 // response. Resumability requires the server to support byte-range
 // requests; on 200 (no Range support), Download.IsPartial is false
 // and the caller must restart from 0.
+//
+// Legacy no-ctx form; new code should call FetchContext so Ctrl+C
+// can interrupt in-flight downloads.
 func (c *Client) Fetch(downloadURL string, startAt int64) (*Download, error) {
+	return c.FetchContext(context.Background(), downloadURL, startAt)
+}
+
+// FetchContext is the context-aware Fetch. Cancelling ctx tears down
+// the HTTP request and unblocks any io.Copy reading from the body.
+func (c *Client) FetchContext(ctx context.Context, downloadURL string, startAt int64) (*Download, error) {
 	if _, err := url.Parse(downloadURL); err != nil {
 		return nil, fmt.Errorf("invalid download URL: %w", err)
 	}
-	req, err := http.NewRequest("GET", downloadURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
 	if err != nil {
 		return nil, err
 	}
