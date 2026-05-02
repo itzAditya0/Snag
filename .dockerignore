@@ -19,3 +19,15 @@ docker-compose.yml
 
 # ide
 .vscode
+
+# go binary + go-only subtree (the Dockerfile builds the api only, so
+# the cli artifacts are dead weight in the build context)
+cli/snag
+cli/dist
+cli/.snag-cache
+
+# claude code / dev tooling — never goes into a container
+.claude
+.code-review-graph
+.cursor
+*.log

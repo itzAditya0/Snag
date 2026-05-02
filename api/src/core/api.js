@@ -88,13 +88,19 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
         handler: handleRateExceeded
     });
 
+    // hold a reference to the api rate-limit store so the /batch handler
+    // can charge N-1 additional hits when fanning out — without this,
+    // a single batch of 50 URLs costs the same against the bucket as
+    // a single one-URL request, multiplying effective rate by 50×.
+    const apiRateStore = await createStore('api');
+
     const apiLimiter = rateLimit({
         windowMs: env.rateLimitWindow * 1000,
         limit: (req) => req.rateLimitMax || env.rateLimitMax,
         standardHeaders: 'draft-6',
         legacyHeaders: false,
         keyGenerator: req => req.rateLimitKey || keyGenerator(req),
-        store: await createStore('api'),
+        store: apiRateStore,
         handler: handleRateExceeded
     });
 
@@ -329,6 +335,23 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
         }
         if (urls.some(u => typeof u !== 'string' || !u.length)) {
             return fail(res, "error.api.batch.invalid_url");
+        }
+
+        // charge the rate-limit bucket for each additional URL beyond the
+        // one already consumed by the apiLimiter middleware at route
+        // entry. without this, /batch is a 50× rate-limit multiplier:
+        // one bucket hit produces N upstream extractions.
+        const rateKey = req.rateLimitKey || keyGenerator(req);
+        for (let i = 1; i < urls.length; i++) {
+            try {
+                await apiRateStore.increment(rateKey);
+            } catch (err) {
+                // store.increment is best-effort here; if redis hiccups
+                // we'd rather process the batch than fail the whole
+                // request. log so operators can spot if it's chronic.
+                console.warn(`[batch] rate-limit increment failed:`, err?.message ?? err);
+                break;
+            }
         }
 
         // collect ONLY recognised option keys from the body. unknown keys

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -180,7 +181,7 @@ func newInfoCmd() *cobra.Command {
 func runDownload(cmd *cobra.Command, args []string) error {
 	url := strings.TrimSpace(args[0])
 	if url == "" {
-		return errors.New("url is required")
+		return usageErr{msg: "url is required"}
 	}
 
 	c := client.New(flagInstance)
@@ -478,7 +479,7 @@ func newInstancesPingCmd() *cobra.Command {
 				}
 			}
 			if len(urls) == 0 {
-				return errors.New("no urls to ping")
+				return usageErr{msg: "no urls to ping"}
 			}
 
 			results := instance.CheckAll(ctx, urls, time.Duration(timeoutSec)*time.Second, concurrency)
@@ -597,7 +598,7 @@ func runBatch(ctx context.Context, srcPath, outDir string, concurrency int, cont
 		return err
 	}
 	if len(urls) == 0 {
-		return errors.New("no urls in input")
+		return usageErr{msg: "no urls in input"}
 	}
 
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
@@ -726,24 +727,86 @@ func short(s string, n int) string {
 
 // ----- error/exit handling -----
 
+// exit-code spec (documented in cli/README.md):
+//   0  success
+//   1  generic failure (pipeline / decode / fs error)
+//   2  invalid usage (missing arg, unknown flag, bad subcommand)
+//   3  unsupported URL or service for this instance
+//   4  instance unreachable / transport error / dns failure
+
 type apiErr struct{ code string }
 
 func (e apiErr) Error() string { return "api: " + e.code }
+
+// usageErr is what RunE returns when the user invoked the CLI wrong
+// (no URL, contradictory flags, etc.). these surface as exit 2 so
+// shell scripts can distinguish "you typed it wrong" from "the
+// download legitimately failed".
+type usageErr struct{ msg string }
+
+func (e usageErr) Error() string { return e.msg }
+
+// cobraUsagePrefixes are message starts that cobra emits for arg /
+// flag / subcommand validation failures. cobra doesn't expose typed
+// errors for these so we have to prefix-match.
+var cobraUsagePrefixes = []string{
+	"accepts ",
+	"requires at ",
+	"unknown command ",
+	"unknown flag: ",
+	"unknown shorthand flag: ",
+	"required flag(s)",
+	"invalid argument",
+	"flag needs an argument",
+}
 
 func exitCodeFor(err error) int {
 	if err == nil {
 		return 0
 	}
+
+	// 2: invalid usage — explicit usageErr or cobra's arg/flag errors
+	var ue usageErr
+	if errors.As(err, &ue) {
+		return 2
+	}
+	msg := err.Error()
+	for _, p := range cobraUsagePrefixes {
+		if strings.HasPrefix(msg, p) {
+			return 2
+		}
+	}
+
+	// 4: instance unreachable. covers DNS lookup failures, connection
+	// refused, TLS handshake errors — anything net/http surfaces as a
+	// *url.Error.
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return 4
+	}
+	// also catch our own wrapped transport messages from Submit /
+	// Fetch — these wrap *url.Error in fmt.Errorf which strips the
+	// type, so prefix-match the wrappers we control.
+	if strings.HasPrefix(msg, "submit: post /:") ||
+		strings.HasPrefix(msg, "transport: ") ||
+		strings.HasPrefix(msg, "instance returned ") {
+		return 4
+	}
+
+	// 3: unsupported URL / service. these are real responses from the
+	// API saying "we can't handle this kind of input."
 	var ae apiErr
 	if errors.As(err, &ae) {
 		switch {
-		case strings.HasPrefix(ae.code, "error.api.link"):
+		case strings.HasPrefix(ae.code, "error.api.link.unsupported"),
+			strings.HasPrefix(ae.code, "error.api.service.unsupported"),
+			strings.HasPrefix(ae.code, "error.api.link.invalid"),
+			strings.HasPrefix(ae.code, "error.api.link.missing"):
 			return 3
-		case strings.HasPrefix(ae.code, "error.api.auth"):
-			return 4
 		}
 		return 1
 	}
+
 	return 1
 }
 

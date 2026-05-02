@@ -31,8 +31,12 @@
             <span class="row-value mono">AGPL-3.0 — independent snag implementation</span>
         </div>
         <div class="row">
-            <span class="row-label mono">packages/api-client/</span>
-            <span class="row-value mono">MIT — inherited from cobalt</span>
+            <span class="row-label mono">cli/</span>
+            <span class="row-value mono">AGPL-3.0 — snag-authored go binary</span>
+        </div>
+        <div class="row">
+            <span class="row-label mono">packages/version-info/</span>
+            <span class="row-value mono">AGPL-3.0 — git metadata helper</span>
         </div>
     </section>
 
