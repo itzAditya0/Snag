@@ -205,7 +205,20 @@ func runDownload(cmd *cobra.Command, args []string) error {
 	// during a re-Submit still cancels the http call.
 	resubmit := func() (*client.Response, error) { return c.SubmitContext(ctx, req) }
 
-	final, err := download.Save(ctx, c, resp, flagOutput, flagQuiet, resubmit)
+	// localFallback closure: if the api returns local-processing (split
+	// audio+video for client-side mux), retry with localProcessing
+	// forced to "disabled" so the api merges server-side. avoids
+	// requiring a system ffmpeg in the CLI.
+	localFallback := func() (*client.Response, error) {
+		fbReq := req
+		fbReq.LocalProcessing = "disabled"
+		if !flagQuiet {
+			fmt.Fprintln(os.Stderr, "local-processing requested — falling back to server-side merge")
+		}
+		return c.SubmitContext(ctx, fbReq)
+	}
+
+	final, err := download.Save(ctx, c, resp, flagOutput, flagQuiet, resubmit, localFallback)
 	if err != nil {
 		return err
 	}
@@ -682,7 +695,12 @@ func runBatch(ctx context.Context, srcPath, outDir string, concurrency int, cont
 
 			batchReq := req // capture for resubmit closure (loop variable safety)
 			resubmit := func() (*client.Response, error) { return c.SubmitContext(ctx, batchReq) }
-			final, err := download.Save(ctx, c, resp, outDir, true /* always quiet per-url for batch */, resubmit)
+			localFallback := func() (*client.Response, error) {
+				fbReq := batchReq
+				fbReq.LocalProcessing = "disabled"
+				return c.SubmitContext(ctx, fbReq)
+			}
+			final, err := download.Save(ctx, c, resp, outDir, true /* always quiet per-url for batch */, resubmit, localFallback)
 			if err != nil {
 				res.errMsg = err.Error()
 				return

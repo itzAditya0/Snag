@@ -1,0 +1,158 @@
+name: cli release
+
+# Builds cross-platform snag CLI binaries on tag push, then publishes
+# them as a GitHub Release. Triggered only by tags shaped `cli-v*`
+# (e.g. cli-v0.1.0) so cli releases are independent of api/web.
+#
+# To cut a release:
+#   git tag cli-v0.1.0
+#   git push origin cli-v0.1.0
+#
+# The job also fires on workflow_dispatch (manual run) so a maintainer
+# can rebuild a release artifact without re-tagging.
+#
+# SECURITY NOTE: untrusted ref / input values are routed through env:
+# vars and quoted in shell — never interpolated directly into run:
+# scripts. see the comments and the github actions injection guide.
+
+on:
+  push:
+    tags:
+      - 'cli-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. cli-v0.1.0). Leave blank to use the current ref.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ''
+          - goos: linux
+            goarch: arm64
+            ext: ''
+          - goos: darwin
+            goarch: amd64
+            ext: ''
+          - goos: darwin
+            goarch: arm64
+            ext: ''
+          - goos: windows
+            goarch: amd64
+            ext: '.exe'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: cli/go.sum
+
+      - name: derive version
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          # ref_name on a tag push is the tag itself (e.g. cli-v0.1.0).
+          # workflow_dispatch lets the operator override.
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          # strip the cli- prefix to get a clean semver-ish version.
+          VERSION="${TAG#cli-}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: build binary
+        working-directory: cli
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          EXT: ${{ matrix.ext }}
+          CGO_ENABLED: '0'
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          OUT="dist/snag-${GOOS}-${GOARCH}${EXT}"
+          # ldflags strips the symbol table for a leaner binary and
+          # bakes the release version in via -X. consumer code is
+          # in cli/internal/version (see version.Version).
+          go build \
+            -trimpath \
+            -ldflags="-s -w -X github.com/snag/snag-cli/internal/version.Version=${VERSION}" \
+            -o "$OUT" \
+            ./cmd/snag
+
+      - name: package
+        working-directory: cli
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          EXT: ${{ matrix.ext }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          BIN="snag-${GOOS}-${GOARCH}${EXT}"
+          ARCHIVE_BASE="snag_${VERSION}_${GOOS}_${GOARCH}"
+          cd dist
+          if [ "$GOOS" = "windows" ]; then
+            zip "${ARCHIVE_BASE}.zip" "$BIN"
+          else
+            # rename to plain `snag` inside the tarball so users can mv
+            # the extracted binary into ~/.local/bin/snag without renaming.
+            cp "$BIN" snag
+            tar czf "${ARCHIVE_BASE}.tar.gz" snag
+            rm snag
+          fi
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: snag-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: cli/dist/snag_*
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: derive version
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: generate sha256 sums
+        working-directory: dist
+        run: sha256sum snag_* > checksums.txt
+
+      - name: create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            dist/snag_*
+            dist/checksums.txt

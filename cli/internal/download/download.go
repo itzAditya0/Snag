@@ -23,6 +23,14 @@ import (
 // retrying.
 type ResubmitFunc func() (*client.Response, error)
 
+// LocalProcessingFallback is a callback invoked when Save receives a
+// `local-processing` response (split audio+video for the client to
+// merge). It should re-issue the original request with
+// localProcessing="disabled" so the api merges server-side and returns
+// a single `tunnel` URL the CLI can stream to disk. Pass nil to skip
+// the fallback and surface a clear error instead.
+type LocalProcessingFallback func() (*client.Response, error)
+
 // Save streams a response payload to disk. If outputPath is empty,
 // the filename from the API response (or HTTP Content-Disposition)
 // is used, falling back to "snag-download" when neither is present.
@@ -32,10 +40,15 @@ type ResubmitFunc func() (*client.Response, error)
 // expiry mid-download by calling resubmit() to obtain a fresh tunnel
 // URL and resuming from the bytes already on disk.
 //
+// localFallback is optional: when provided, Save will react to a
+// `local-processing` response (which the CLI can't merge directly)
+// by invoking localFallback() to obtain an equivalent `tunnel`
+// response from the same api with server-side merge enabled.
+//
 // Cancelling ctx aborts the in-flight HTTP request and any io.Copy
 // reading from it; the .part is preserved so a future invocation can
 // resume.
-func Save(ctx context.Context, c *client.Client, resp *client.Response, outputPath string, quiet bool, resubmit ResubmitFunc) (string, error) {
+func Save(ctx context.Context, c *client.Client, resp *client.Response, outputPath string, quiet bool, resubmit ResubmitFunc, localFallback LocalProcessingFallback) (string, error) {
 	if resp == nil {
 		return "", errors.New("nil response")
 	}
@@ -46,7 +59,31 @@ func Save(ctx context.Context, c *client.Client, resp *client.Response, outputPa
 	case "picker":
 		return "", fmt.Errorf("picker responses (%d items) require --pick or interactive mode (not yet supported by the cli)", len(resp.Picker))
 	case "local-processing":
-		return "", fmt.Errorf("local-processing responses are handled by the web frontend; set localProcessing=disabled in /settings or via --local-processing=disabled to have the server merge instead")
+		// the CLI doesn't ship an ffmpeg binary, so we can't mux split
+		// streams ourselves. transparently retry with
+		// localProcessing="disabled" — the api will then run its own
+		// ffmpeg pipeline and hand us a single tunnel URL to stream.
+		// matches what an interactive web user sees when they set
+		// "local processing: disabled" in /settings.
+		if localFallback == nil {
+			return "", fmt.Errorf("api returned local-processing (%d streams) — set --local-processing=disabled to have the server merge instead", len(resp.Tunnel))
+		}
+		retry, err := localFallback()
+		if err != nil {
+			return "", fmt.Errorf("local-processing fallback (resubmit with localProcessing=disabled): %w", err)
+		}
+		if retry == nil {
+			return "", errors.New("local-processing fallback returned nil response")
+		}
+		if retry.Status == "local-processing" {
+			// the api still wants client-side merge after we asked it
+			// not to — likely because of forced/preferred override on
+			// the api side (e.g. localProcessing=forced env). bail.
+			return "", errors.New("api refuses server-side merge (likely localProcessing=forced on the api); install ffmpeg locally or use the web frontend")
+		}
+		// recurse, but pass nil for localFallback this time so we
+		// don't loop forever.
+		return Save(ctx, c, retry, outputPath, quiet, resubmit, nil)
 	case "error":
 		if resp.Error != nil {
 			return "", fmt.Errorf("api error: %s", resp.Error.Code)

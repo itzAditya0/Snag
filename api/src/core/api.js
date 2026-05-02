@@ -1,6 +1,6 @@
 import cors from "cors";
 import http from "node:http";
-import rateLimit from "express-rate-limit";
+import rateLimit, { MemoryStore } from "express-rate-limit";
 import { setGlobalDispatcher, EnvHttpProxyAgent } from "undici";
 import { getCommit, getBranch, getRemote, getVersion } from "@snag/version-info";
 
@@ -92,7 +92,13 @@ export const runAPI = async (express, app, __dirname, isPrimary = true) => {
     // can charge N-1 additional hits when fanning out — without this,
     // a single batch of 50 URLs costs the same against the bucket as
     // a single one-URL request, multiplying effective rate by 50×.
-    const apiRateStore = await createStore('api');
+    //
+    // createStore('api') returns undefined when REDIS_URL isn't set
+    // (local dev). express-rate-limit then falls back to its own
+    // in-memory store, which we can't reach. fall back to an explicit
+    // MemoryStore here so we always have a reference to increment from
+    // the batch handler regardless of redis presence.
+    const apiRateStore = (await createStore('api')) || new MemoryStore();
 
     const apiLimiter = rateLimit({
         windowMs: env.rateLimitWindow * 1000,
