@@ -250,7 +250,7 @@ jobs:
           mkdir -p tap/Formula
           # render the template by literal substitution. envsubst would
           # also work but python keeps us hermetic across runners.
-          # values come via env vars not direct ${{ }} interpolation.
+          # values come via env vars, not direct expression interpolation.
           python3 - <<'PY'
           import os, pathlib
           tpl = pathlib.Path("src/cli/homebrew/snag.rb").read_text()
@@ -303,7 +303,7 @@ jobs:
             exit 0
           fi
           # commit message uses env vars not direct interpolation —
-          # never trust ${{ github.* }} strings in shell command text.
+          # untrusted github context values are routed through env: above.
           git commit -m "snag ${VERSION} (auto-update from ${TAG})"
           # -u origin main covers both the seed-an-empty-tap case
           # (creates the remote main branch) and the normal-update
